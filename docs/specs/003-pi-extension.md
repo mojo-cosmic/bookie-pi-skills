@@ -1,0 +1,79 @@
+# SPEC-003: Pi extension
+
+## Status
+
+Draft — ready after the relevant SPEC-002 APIs exist
+
+Owner: unassigned  
+Target release: 0.1  
+Depends on: SPEC-002, Pi extension/package APIs
+
+## Goal
+
+Provide a distributable Pi package that exposes safe Bookie read, search, write, checkpoint, validate, and export workflows while keeping canonical rules in core and requiring approval for durable capture.
+
+## Non-goals
+
+- Automatic memory promotion after every turn.
+- Automatic commits or pushes.
+- Owning Redis indexing logic.
+- Full transcript archival.
+- Complex TUI dashboards in the first release.
+
+## Requirements
+
+1. Register these stable tools: `bookie_read`, `bookie_search`, `bookie_write`, `bookie_checkpoint`, `bookie_validate`, and `bookie_export`.
+2. Register human commands for capture, checkpoint, search, validation, status, and export.
+3. Resolve configuration only after project trust and support a vault outside the current code repository.
+4. Use Pi's `StringEnum` for string enum schemas and strict TypeBox inputs.
+5. Queue the complete mutation window with Pi's file mutation queue using the resolved absolute path.
+6. Throw actionable errors so failed tools are marked failed; never return error-looking successful content.
+7. Enforce Pi output limits, save bounded details only, and disclose truncation.
+8. Offer a checkpoint before compaction only when UI is available; compaction must continue if the user declines or no UI exists.
+9. Never write a checkpoint from `agent_end` or `agent_settled` without explicit approval.
+10. Label local and service fallback modes and include source/trust/freshness metadata.
+11. Start clients/watchers on session start or demand and close them idempotently at session shutdown.
+12. Package runtime dependencies correctly and expose skills only when they add workflow knowledge beyond tool descriptions.
+
+## Tool behavior
+
+- `bookie_read`: resolve UID/path and return bounded canonical content plus metadata.
+- `bookie_search`: search local overlay and optional service; expose mode and score sources.
+- `bookie_write`: create/amend/supersede/archive using typed actions; no generic arbitrary-file write.
+- `bookie_checkpoint`: prepare a preview from session context, require confirmation where UI exists, then create one Activity.
+- `bookie_validate`: validate selected files or vault, optionally against a base ref.
+- `bookie_export`: produce a dry-run or local artifact; external destination execution belongs to SPEC-005.
+
+Non-interactive calls that require approval must fail with a clear instruction unless the user explicitly supplied an approval flag in the originating tool parameters.
+
+## Acceptance criteria
+
+- The package installs from a local path and Git source using Pi package conventions.
+- All six tools load, advertise accurate descriptions, and call core rather than duplicate policy.
+- Mutation tests prove serialization through the file mutation queue.
+- Checkpoint preview/confirm/write succeeds in TUI and refuses ambiguous approval in print/JSON mode.
+- Declining a checkpoint writes nothing and does not cancel compaction.
+- No lifecycle hook creates canonical files during ordinary agent completion.
+- Service outage returns labelled local fallback results; total retrieval failure throws or returns an explicit failed/degraded contract rather than an empty success.
+- Tool outputs truncate at documented byte/line limits and point to a retrievable full artifact where appropriate.
+- Session shutdown releases all resources and remains safe when called twice.
+- Source inspection confirms no commit or push invocation exists.
+
+## Test strategy
+
+- Extension registration tests with a fake Pi API.
+- Tool contract tests against temporary example vaults.
+- Parallel mutation test that would lose an update without queueing.
+- TUI, RPC/print, cancellation, decline, service-failure, and output-boundary tests.
+- Package smoke test through `pi -e` or local package installation in CI where Pi is available.
+- Static test denying `git commit`, `git push`, credential logging, and writes outside core mutation APIs.
+
+## Dependencies
+
+- [SPEC-002](002-core-and-cli.md)
+- [Pi package architecture](../architecture/overview.md#pi-extension)
+- Installed Pi documentation: `docs/extensions.md`, `docs/packages.md`, and `docs/skills.md`
+
+## Delivery notes
+
+Begin with read, local search, validate, and explicit create. Add checkpoint only after the Activity schema and session-context redaction policy are verified. Keep initial rendering compact and use default Pi rendering unless a proven usability problem requires customization.

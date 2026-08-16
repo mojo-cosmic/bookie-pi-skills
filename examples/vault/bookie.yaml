@@ -1,0 +1,16 @@
+profile: "0.1"
+vault:
+  uid: VLT-01ARZ3NDEKTSV4RRFFQ69G5FAY
+  title: Demo Bookie vault
+  default_timezone: UTC
+policy:
+  evidence_roots:
+    - references/files
+  exclude:
+    - exports/**
+    - .bookie/**
+  # Fixture policy only; deployment sensitivity approval remains explicit.
+  indexable_sensitivity:
+    - public
+  # Fixture value only; the product default remains an open question.
+  attachment_max_bytes: 26214400

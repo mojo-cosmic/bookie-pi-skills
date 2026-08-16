@@ -1,0 +1,33 @@
+{
+  "name": "bookie-pi-skills",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Local-first, OKF-compatible project ledger and Pi tooling.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "format:check": "prettier --check \"**/*.{js,mjs,ts,json,yaml,yml}\"",
+    "lint": "eslint .",
+    "test": "npm run test:repo && npm run test --workspaces --if-present",
+    "test:repo": "node --test test/*.test.mjs",
+    "typecheck": "tsc -b --pretty false",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.8.1",
+    "globals": "^17.11.0",
+    "prettier": "^3.7.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.48.0"
+  },
+  "packageManager": "npm@11.9.0"
+}
