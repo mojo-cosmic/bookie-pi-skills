@@ -12,7 +12,7 @@ sources:
     resource: urn:pi:session:demo-session
     title: Demonstration Pi session
 bookie:
-  profile: "0.1"
+  profile: "1.0"
   uid: ACT-01ARZ3NDEKTSV4RRFFQ69G5FAX
   project: /projects/demo/project.md
   occurred_at: 2026-06-27T09:30:00Z

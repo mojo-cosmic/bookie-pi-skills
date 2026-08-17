@@ -1,0 +1,11 @@
+{
+  "profile": "1.0",
+  "vault": { "uid": "VLT-01arz3ndektsv4rrffq69g5fay", "title": "x" },
+  "allowed_concept_types": ["Project"],
+  "policy": {
+    "evidence_roots": ["evidence"],
+    "exclude": [],
+    "sensitivity": { "classes": ["public"], "excluded_classes": [] },
+    "attachment_max_bytes": 1
+  }
+}

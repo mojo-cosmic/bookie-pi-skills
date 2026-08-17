@@ -19,8 +19,9 @@ build/
 coverage/
 *.tsbuildinfo
 
-# Bookie derived/local state
+# Bookie and Pi derived/local state
 .bookie/
+.pi/
 exports/
 
 # Logs

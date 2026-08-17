@@ -5,8 +5,8 @@ Statuses: `Ready`, `Blocked`, `Deferred`, `Done`. Work top to bottom unless a de
 | ID | Status | Specification | Work item | Dependencies | Observable acceptance |
 |---|---|---|---|---|---|
 | BK-001 | Done | SPEC-001/ADR-0004 | Establish npm workspaces, TypeScript baseline, formatter/linter policy, and root quality command. See [evidence](evidence/BK-001.md). | None | A minimal core package test fails then passes; root `npm run check` executes all workspace checks on Node 24. |
-| BK-002 | Ready | SPEC-001 | Implement `bookie.yaml` profile manifest and JSON Schema. | BK-001 | Valid configuration fixtures pass; unknown keys policy and invalid paths/classes fail with fixture evidence. |
-| BK-003 | Blocked | SPEC-001 | Implement common metadata and all initial type schemas. | BK-002 | Every type has positive and required negative fixtures; schema meta-validation passes. |
+| BK-002 | Done | SPEC-001 | Implement `bookie.yaml` profile manifest and JSON Schema. See [evidence](evidence/BK-002.md). | BK-001 | Valid configuration fixtures pass; unknown keys policy and invalid paths/classes fail with fixture evidence. |
+| BK-003 | Ready | SPEC-001 | Implement common metadata and all initial type schemas. | BK-002 | Every type has positive and required negative fixtures; schema meta-validation passes. |
 | BK-004 | Blocked | SPEC-001 | Define relation vocabulary, lifecycle/state enums, UID prefixes, and named cross-file policy rules. | BK-003 | Reference tables and fixtures cover inverse, supersession, immutable, and digest boundaries. |
 | BK-005 | Blocked | SPEC-001 | Complete the profile reference, full example vault, and profile-version migration rules. | BK-004 | Generic OKF checks and repository fixture checks pass for all concept types. |
 | BK-006 | Blocked | SPEC-002 | Implement lossless concept loading and structured diagnostics in core. | BK-005, OQ-002 | Golden round trips preserve unknown frontmatter and untouched Markdown; malformed YAML reports stable diagnostics. |

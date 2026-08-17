@@ -1,0 +1,17 @@
+{
+  "profile": "1.0",
+  "vault": {
+    "uid": "VLT-00000000000000000000000000",
+    "title": "Minimum boundaries"
+  },
+  "allowed_concept_types": ["Person"],
+  "policy": {
+    "evidence_roots": ["a"],
+    "exclude": ["*", "**"],
+    "sensitivity": {
+      "classes": ["a"],
+      "excluded_classes": []
+    },
+    "attachment_max_bytes": 1
+  }
+}

@@ -8,7 +8,7 @@ generated:
   by: "human:demo-owner"
   at: 2026-06-27T09:15:00Z
 bookie:
-  profile: "0.1"
+  profile: "1.0"
   uid: TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW
   project: /projects/demo/project.md
   state: done
