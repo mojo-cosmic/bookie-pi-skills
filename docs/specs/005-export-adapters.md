@@ -65,6 +65,7 @@ The final schema belongs in the repository and is validated before any adapter c
 - A partial destination failure records successful operations, leaves failed operations retryable, and does not write uncertain IDs.
 - External-ID write-back requires explicit approval and passes normal canonical validation.
 - Destination credentials never appear in plans, receipts, logs, or canonical records.
+- Records assigned an excluded class contribute no identifiers or content to JSONL, plans, receipts, destination requests, diagnostics, or adapter logs; an included control record still exports.
 - Attachment limits and unsupported relation types are visible before execution.
 
 ## Test strategy
@@ -74,6 +75,7 @@ The final schema belongs in the repository and is validated before any adapter c
 - Fake HTTP servers for retries, rate limits, pagination, partial failure, and idempotency.
 - Receipt/plan hash tests and approval/write-back tests.
 - Credential-redaction and attachment-boundary tests.
+- Mixed-sensitivity export tests capture JSONL, plans, receipts, fake destination requests, diagnostics, and logs for positive inclusion and excluded-data omission.
 - Optional sandbox smoke tests guarded by explicit environment configuration.
 
 ## Dependencies

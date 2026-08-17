@@ -67,6 +67,7 @@ Exit codes:
 - Evidence capture verifies the digest after writing and leaves no descriptor on failure.
 - Filesystem search reports degraded/local mode and respects project, type, lifecycle, workflow, and sensitivity filters.
 - JSONL export is byte-for-byte deterministic across repeated runs.
+- A mixed-sensitivity export retains included records but omits records assigned a class in `policy.sensitivity.excluded_classes`; excluded UIDs, paths, and marker content appear in neither JSONL nor export diagnostics or logs.
 - CLI stdout is machine-safe in JSON mode and diagnostics go to stderr.
 - No core test requires Pi, Redis, Docker, or a network connection.
 
@@ -77,6 +78,7 @@ Exit codes:
 - Boundary tests for empty vaults, large concepts, duplicate IDs, broken links, malformed YAML, symlink escapes, and interrupted writes.
 - Integration tests in temporary Git repositories for base-ref immutability.
 - CLI process tests covering output, stderr, exit codes, cancellation, and no-partial-write behavior.
+- Mixed-sensitivity JSONL fixtures assert positive inclusion and excluded UID, path, content, diagnostic, and log omission.
 
 ## Dependencies
 

@@ -8,10 +8,12 @@
     },
     {
       "type": "object",
+      "required": ["resource"],
       "properties": {
         "type": {
           "const": "Evidence"
         },
+        "resource": true,
         "bookie": {
           "type": "object",
           "required": [
@@ -19,7 +21,6 @@
             "captured_at",
             "sha256",
             "mime_type",
-            "resource",
             "supports"
           ],
           "properties": {
@@ -27,7 +28,6 @@
             "captured_at": true,
             "sha256": true,
             "mime_type": true,
-            "resource": true,
             "supports": true
           }
         }

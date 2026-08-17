@@ -16,8 +16,24 @@
           "type": "object",
           "required": ["created_at"],
           "properties": {
+            "project": true,
+            "scope": true,
             "created_at": true
-          }
+          },
+          "oneOf": [
+            {
+              "required": ["project"],
+              "properties": {
+                "project": true
+              }
+            },
+            {
+              "required": ["scope"],
+              "properties": {
+                "scope": true
+              }
+            }
+          ]
         }
       }
     }

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 
 import Ajv2020 from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 
 const root = resolve(import.meta.dirname, "..");
 const commonSchemaPath = resolve(root, "schemas/bookie-common.schema.json");
@@ -21,42 +22,131 @@ const typeNames = [
   "Person",
 ];
 
-const validFixtures = typeNames.map((type) => type.toLowerCase());
+const validFixtures = {
+  activity: "Activity",
+  decision: "Decision",
+  document: "Document",
+  evidence: "Evidence",
+  person: "Person",
+  project: "Project",
+  research: "Research",
+  "research-project": "Research",
+  task: "Task",
+};
+
+const expectedError = (keyword, instancePath, missingProperty) => ({
+  instancePath,
+  keyword,
+  ...(missingProperty === undefined ? {} : { missingProperty }),
+});
 
 const invalidFixtures = {
-  "project-missing-created-at": ["Project", "required", "/bookie"],
-  "task-missing-project": ["Task", "required", "/bookie"],
-  "document-missing-project": ["Document", "required", "/bookie"],
-  "research-missing-created-at": ["Research", "required", "/bookie"],
-  "decision-missing-state": ["Decision", "required", "/bookie"],
-  "activity-missing-occurred-at": ["Activity", "required", "/bookie"],
-  "evidence-missing-sha256": ["Evidence", "required", "/bookie"],
-  "person-missing-created-at": ["Person", "required", "/bookie"],
-  "project-invalid-status": ["Project", "enum", "/status"],
-  "project-invalid-state": ["Project", "enum", "/bookie/state"],
-  "task-invalid-state": ["Task", "enum", "/bookie/state"],
-  "project-malformed-uid": ["Project", "pattern", "/bookie/uid"],
-  "project-non-utc-created-at": ["Project", "pattern", "/bookie/created_at"],
-  "project-impossible-calendar-date": [
-    "Project",
-    "pattern",
-    "/bookie/created_at",
-  ],
-  "project-impossible-calendar-month": [
-    "Project",
-    "pattern",
-    "/bookie/created_at",
-  ],
-  "project-impossible-clock-time": ["Project", "pattern", "/bookie/created_at"],
-  "evidence-invalid-sha256": ["Evidence", "pattern", "/bookie/sha256"],
+  "activity-missing-occurred-at": {
+    type: "Activity",
+    errors: [expectedError("required", "/bookie", "occurred_at")],
+  },
+  "decision-missing-state": {
+    type: "Decision",
+    errors: [expectedError("required", "/bookie", "state")],
+  },
+  "document-missing-project": {
+    type: "Document",
+    errors: [expectedError("required", "/bookie", "project")],
+  },
+  "evidence-invalid-sha256": {
+    type: "Evidence",
+    errors: [expectedError("pattern", "/bookie/sha256")],
+  },
+  "evidence-missing-resource": {
+    type: "Evidence",
+    errors: [expectedError("required", "", "resource")],
+  },
+  "evidence-missing-sha256": {
+    type: "Evidence",
+    errors: [expectedError("required", "/bookie", "sha256")],
+  },
+  "person-missing-created-at": {
+    type: "Person",
+    errors: [expectedError("required", "/bookie", "created_at")],
+  },
+  "project-impossible-calendar-date": {
+    type: "Project",
+    errors: [expectedError("pattern", "/bookie/created_at")],
+  },
+  "project-impossible-calendar-month": {
+    type: "Project",
+    errors: [expectedError("pattern", "/bookie/created_at")],
+  },
+  "project-impossible-clock-time": {
+    type: "Project",
+    errors: [expectedError("pattern", "/bookie/created_at")],
+  },
+  "project-invalid-state": {
+    type: "Project",
+    errors: [expectedError("enum", "/bookie/state")],
+  },
+  "project-invalid-status": {
+    type: "Project",
+    errors: [expectedError("enum", "/status")],
+  },
+  "project-malformed-uid": {
+    type: "Project",
+    errors: [expectedError("pattern", "/bookie/uid")],
+  },
+  "project-missing-created-at": {
+    type: "Project",
+    errors: [expectedError("required", "/bookie", "created_at")],
+  },
+  "project-missing-uid": {
+    type: "Project",
+    errors: [expectedError("required", "/bookie", "uid")],
+  },
+  "project-non-utc-created-at": {
+    type: "Project",
+    errors: [expectedError("pattern", "/bookie/created_at")],
+  },
+  "research-invalid-scope": {
+    type: "Research",
+    errors: [expectedError("const", "/bookie/scope")],
+  },
+  "research-missing-created-at": {
+    type: "Research",
+    errors: [expectedError("required", "/bookie", "created_at")],
+  },
+  "research-missing-project-or-scope": {
+    type: "Research",
+    errors: [
+      expectedError("required", "/bookie", "project"),
+      expectedError("required", "/bookie", "scope"),
+      expectedError("oneOf", "/bookie"),
+    ],
+  },
+  "research-project-and-scope": {
+    type: "Research",
+    errors: [expectedError("oneOf", "/bookie")],
+  },
+  "task-invalid-state": {
+    type: "Task",
+    errors: [expectedError("enum", "/bookie/state")],
+  },
+  "task-missing-project": {
+    type: "Task",
+    errors: [expectedError("required", "/bookie", "project")],
+  },
 };
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function readFixture(kind, name) {
+  return readJson(resolve(fixtureRoot, kind, `${name}.json`));
+}
+
 function createAjv() {
-  return new Ajv2020({ allErrors: true, strict: true });
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  addFormats(ajv);
+  return ajv;
 }
 
 function loadValidator(type) {
@@ -65,6 +155,38 @@ function loadValidator(type) {
   return ajv.compile(
     readJson(resolve(typeSchemaRoot, `${type.toLowerCase()}.schema.json`)),
   );
+}
+
+function normalizeErrors(errors) {
+  return (errors ?? [])
+    .map((error) =>
+      expectedError(
+        error.keyword,
+        error.instancePath,
+        error.keyword === "required"
+          ? (error.missingProperty ?? error.params?.missingProperty)
+          : undefined,
+      ),
+    )
+    .sort((left, right) =>
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+    );
+}
+
+function deleteAtPath(value, path) {
+  const parent = path
+    .slice(0, -1)
+    .reduce((current, property) => current[property], value);
+  delete parent[path.at(-1)];
+}
+
+function setAtPath(value, path, replacement) {
+  if (path.length === 0) return replacement;
+  const parent = path
+    .slice(0, -1)
+    .reduce((current, property) => current[property], value);
+  parent[path.at(-1)] = replacement;
+  return value;
 }
 
 test("common and initial type schemas meta-validate in Ajv strict mode", () => {
@@ -86,26 +208,26 @@ test("common and initial type schemas meta-validate in Ajv strict mode", () => {
   }
 });
 
-test("every initial type has an enumerated valid fixture", async (t) => {
+test("every initial type and Research scope form has an enumerated valid fixture", async (t) => {
   assert.deepEqual(
     readdirSync(resolve(fixtureRoot, "valid"))
       .filter((name) => name.endsWith(".json"))
       .sort(),
-    validFixtures.map((name) => `${name}.json`).sort(),
+    Object.keys(validFixtures)
+      .map((name) => `${name}.json`)
+      .sort(),
   );
 
-  for (const type of typeNames) {
-    await t.test(type, () => {
+  for (const [name, type] of Object.entries(validFixtures)) {
+    await t.test(name, () => {
       const validate = loadValidator(type);
-      const fixture = readJson(
-        resolve(fixtureRoot, "valid", `${type.toLowerCase()}.json`),
-      );
+      const fixture = readFixture("valid", name);
       assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
     });
   }
 });
 
-test("every initial type has a required-field negative fixture", async (t) => {
+test("invalid fixtures fail only at their declared contract boundary", async (t) => {
   assert.deepEqual(
     readdirSync(resolve(fixtureRoot, "invalid"))
       .filter((name) => name.endsWith(".json"))
@@ -115,38 +237,782 @@ test("every initial type has a required-field negative fixture", async (t) => {
       .sort(),
   );
 
-  for (const [name, [type, keyword, instancePath]] of Object.entries(
-    invalidFixtures,
-  )) {
+  for (const [name, { type, errors }] of Object.entries(invalidFixtures)) {
     await t.test(name, () => {
       const validate = loadValidator(type);
-      const fixture = readJson(resolve(fixtureRoot, "invalid", `${name}.json`));
+      const fixture = readFixture("invalid", name);
       assert.equal(validate(fixture), false, `${name} unexpectedly passed`);
-      assert.ok(
-        validate.errors?.some(
-          (error) =>
-            error.keyword === keyword && error.instancePath === instancePath,
-        ),
+      assert.deepEqual(
+        normalizeErrors(validate.errors),
+        normalizeErrors(errors),
         `${name} failed for the wrong reason: ${JSON.stringify(validate.errors)}`,
       );
     });
   }
 });
 
-test("common schema validates lifecycle, UID, UTC timestamps, and preserves extensions", () => {
-  const fixture = readJson(resolve(fixtureRoot, "valid", "project.json"));
+test("every required common and type field rejects omission", async (t) => {
+  const cases = [
+    ["Project", "project", ["type"]],
+    ["Project", "project", ["title"]],
+    ["Project", "project", ["status"]],
+    ["Project", "project", ["generated"]],
+    ["Project", "project", ["generated", "by"]],
+    ["Project", "project", ["generated", "at"]],
+    ["Project", "project", ["bookie"]],
+    ["Project", "project", ["bookie", "profile"]],
+    ["Project", "project", ["bookie", "uid"]],
+    ["Project", "project", ["bookie", "created_at"]],
+    ["Project", "project", ["bookie", "state"]],
+    ["Task", "task", ["bookie", "project"]],
+    ["Task", "task", ["bookie", "created_at"]],
+    ["Task", "task", ["bookie", "state"]],
+    ["Document", "document", ["bookie", "project"]],
+    ["Document", "document", ["bookie", "created_at"]],
+    ["Research", "research", ["bookie", "created_at"]],
+    ["Decision", "decision", ["bookie", "project"]],
+    ["Decision", "decision", ["bookie", "created_at"]],
+    ["Decision", "decision", ["bookie", "state"]],
+    ["Activity", "activity", ["bookie", "project"]],
+    ["Activity", "activity", ["bookie", "occurred_at"]],
+    ["Evidence", "evidence", ["resource"]],
+    ["Evidence", "evidence", ["bookie", "project"]],
+    ["Evidence", "evidence", ["bookie", "captured_at"]],
+    ["Evidence", "evidence", ["bookie", "sha256"]],
+    ["Evidence", "evidence", ["bookie", "mime_type"]],
+    ["Evidence", "evidence", ["bookie", "supports"]],
+    ["Person", "person", ["bookie", "created_at"]],
+  ];
+
+  for (const [type, fixtureName, path] of cases) {
+    await t.test(`${type} ${path.join(".")}`, () => {
+      const fixture = readFixture("valid", fixtureName);
+      deleteAtPath(fixture, path);
+      const validate = loadValidator(type);
+
+      assert.equal(
+        validate(fixture),
+        false,
+        `${path.join(".")} omission passed`,
+      );
+      const instancePath =
+        path.length === 1 ? "" : `/${path.slice(0, -1).join("/")}`;
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "required" &&
+            error.instancePath === instancePath &&
+            error.params.missingProperty === path.at(-1),
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("every type schema rejects a mismatched type", async (t) => {
+  for (const type of typeNames) {
+    await t.test(type, () => {
+      const fixtureName = type.toLowerCase();
+      const fixture = readFixture("valid", fixtureName);
+      fixture.type = "Unexpected";
+      const validate = loadValidator(type);
+
+      assert.equal(validate(fixture), false, `${type} accepted another type`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "const" && error.instancePath === "/type",
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("common schema rejects an incompatible profile version", () => {
+  const fixture = readFixture("valid", "project");
+  fixture.bookie.profile = "2.0";
   const validate = loadValidator("Project");
 
-  fixture.custom_top_level = { retained: true };
-  fixture.bookie.custom_metadata = "retained";
-  fixture.bookie.created_at = "2024-02-29T00:00:00Z";
-  assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
-
-  fixture.status = "done";
   assert.equal(validate(fixture), false);
   assert.ok(
     validate.errors?.some(
-      (error) => error.keyword === "enum" && error.instancePath === "/status",
+      (error) =>
+        error.keyword === "const" && error.instancePath === "/bookie/profile",
     ),
+    JSON.stringify(validate.errors),
   );
+});
+
+test("all lifecycle and workflow enum values are covered", async (t) => {
+  const cases = [
+    ["Project", "project", ["status"], ["draft", "stable", "deprecated"]],
+    [
+      "Project",
+      "project",
+      ["bookie", "state"],
+      ["active", "paused", "completed", "archived"],
+    ],
+    [
+      "Task",
+      "task",
+      ["bookie", "state"],
+      ["proposed", "ready", "in_progress", "blocked", "done", "cancelled"],
+    ],
+    [
+      "Decision",
+      "decision",
+      ["bookie", "state"],
+      ["proposed", "accepted", "rejected", "superseded"],
+    ],
+  ];
+
+  for (const [type, fixtureName, path, values] of cases) {
+    await t.test(`${type} ${path.join(".")}`, () => {
+      const validate = loadValidator(type);
+      for (const value of values) {
+        const fixture = setAtPath(
+          readFixture("valid", fixtureName),
+          path,
+          value,
+        );
+        assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+      }
+
+      const fixture = setAtPath(
+        readFixture("valid", fixtureName),
+        path,
+        "unexpected",
+      );
+      assert.equal(validate(fixture), false);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "enum" &&
+            error.instancePath === `/${path.join("/")}`,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("known OKF provenance, trust, freshness, and actor shapes validate", async (t) => {
+  const validate = loadValidator("Project");
+  const validActors = ["human:demo", "process:nightly", "bookie/1.0"];
+
+  for (const actor of validActors) {
+    await t.test(`actor ${actor}`, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.generated.by = actor;
+      fixture.resource = "/references/source.md";
+      fixture.sources = [
+        {
+          id: "source",
+          resource: "/references/source.md",
+          title: "Source",
+          author: "human:docs",
+          usage_count: 0,
+          last_modified: "2024-02-29",
+          usage_window: { from: "2024-02-01", to: "2024-02-29" },
+        },
+      ];
+      fixture.usage_window = { from: "2024-02-01", to: "2024-02-29" };
+      fixture.verified = { by: "human:reviewer", at: "2024-02-29T12:00:00Z" };
+      fixture.stale_after = "2024-03-31";
+      assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+
+      fixture.verified = [
+        { by: "process:nightly", at: "2024-03-01T00:00:00Z" },
+      ];
+      assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+    });
+  }
+
+  const usageContexts = [
+    [
+      "shared usage window only",
+      (fixture) => {
+        fixture.sources = [{ resource: "/source", usage_count: 1 }];
+        fixture.usage_window = { from: "2025-01-01", to: "2025-01-31" };
+      },
+    ],
+    [
+      "per-source usage window only",
+      (fixture) => {
+        fixture.sources = [
+          {
+            resource: "/source",
+            usage_count: 1,
+            usage_window: { from: "2025-01-01", to: "2025-01-31" },
+          },
+        ];
+      },
+    ],
+  ];
+  for (const [name, applyContext] of usageContexts) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      applyContext(fixture);
+      assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+    });
+  }
+
+  const invalidActors = [
+    "human:",
+    "process:",
+    "/1.0",
+    "bookie/",
+    "bookie/1.0/extra",
+    "human:a b",
+    "human:a\n",
+  ];
+  for (const actor of invalidActors) {
+    await t.test(`invalid actor ${JSON.stringify(actor)}`, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.generated.by = actor;
+      assert.equal(validate(fixture), false, `${JSON.stringify(actor)} passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "pattern" &&
+            error.instancePath === "/generated/by",
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+
+  const invalidMutations = [
+    [
+      "actor",
+      (fixture) => (fixture.generated.by = "alice"),
+      "pattern",
+      "/generated/by",
+    ],
+    [
+      "source resource",
+      (fixture) => (fixture.sources = [{}]),
+      "required",
+      "/sources/0",
+    ],
+    [
+      "source author",
+      (fixture) =>
+        (fixture.sources = [{ resource: "/source", author: "alice" }]),
+      "pattern",
+      "/sources/0/author",
+    ],
+    [
+      "source usage count",
+      (fixture) =>
+        (fixture.sources = [{ resource: "/source", usage_count: -1 }]),
+      "minimum",
+      "/sources/0/usage_count",
+    ],
+    [
+      "unframed source usage count",
+      (fixture) =>
+        (fixture.sources = [{ resource: "/source", usage_count: 42 }]),
+      "anyOf",
+      "",
+    ],
+    [
+      "source date",
+      (fixture) =>
+        (fixture.sources = [
+          { resource: "/source", last_modified: "2025-02-29" },
+        ]),
+      "pattern",
+      "/sources/0/last_modified",
+    ],
+    [
+      "verified scalar",
+      (fixture) => (fixture.verified = "reviewed"),
+      "oneOf",
+      "/verified",
+    ],
+    [
+      "verified empty",
+      (fixture) => (fixture.verified = []),
+      "minItems",
+      "/verified",
+    ],
+    [
+      "verification event missing at",
+      (fixture) => (fixture.verified = { by: "human:reviewer" }),
+      "required",
+      "/verified",
+    ],
+    [
+      "verification event missing by",
+      (fixture) => (fixture.verified = { at: "2025-01-01T00:00:00Z" }),
+      "required",
+      "/verified",
+    ],
+    [
+      "verification list actor",
+      (fixture) =>
+        (fixture.verified = [{ by: "alice", at: "2025-01-01T00:00:00Z" }]),
+      "pattern",
+      "/verified/0/by",
+    ],
+    [
+      "verification list timestamp",
+      (fixture) =>
+        (fixture.verified = [
+          { by: "human:reviewer", at: "2025-01-01T00:00:00+01:00" },
+        ]),
+      "pattern",
+      "/verified/0/at",
+    ],
+    [
+      "verification list item",
+      (fixture) => (fixture.verified = [1]),
+      "type",
+      "/verified/0",
+    ],
+    [
+      "stale date",
+      (fixture) => (fixture.stale_after = "2025-02-29"),
+      "pattern",
+      "/stale_after",
+    ],
+    [
+      "usage window missing to",
+      (fixture) => (fixture.usage_window = { from: "2025-01-01" }),
+      "required",
+      "/usage_window",
+    ],
+    [
+      "usage window missing from",
+      (fixture) => (fixture.usage_window = { to: "2025-01-31" }),
+      "required",
+      "/usage_window",
+    ],
+    [
+      "source usage window missing from",
+      (fixture) =>
+        (fixture.sources = [
+          {
+            resource: "/source",
+            usage_count: 1,
+            usage_window: { to: "2025-01-31" },
+          },
+        ]),
+      "required",
+      "/sources/0/usage_window",
+    ],
+    [
+      "usage window invalid from date",
+      (fixture) =>
+        (fixture.usage_window = { from: "2025-02-29", to: "2025-03-01" }),
+      "pattern",
+      "/usage_window/from",
+    ],
+    [
+      "source usage window invalid to date",
+      (fixture) =>
+        (fixture.sources = [
+          {
+            resource: "/source",
+            usage_count: 1,
+            usage_window: { from: "2025-02-01", to: "2025-02-29" },
+          },
+        ]),
+      "pattern",
+      "/sources/0/usage_window/to",
+    ],
+  ];
+
+  for (const [name, mutate, keyword, instancePath] of invalidMutations) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      mutate(fixture);
+      assert.equal(validate(fixture), false, `${name} unexpectedly passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === keyword && error.instancePath === instancePath,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("Evidence uses top-level resource and validates media type and web origin", async (t) => {
+  const validate = loadValidator("Evidence");
+  const fixture = readFixture("valid", "evidence");
+  assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+
+  await t.test("bookie-only resource", () => {
+    const nested = structuredClone(fixture);
+    nested.bookie.resource = nested.resource;
+    delete nested.resource;
+    assert.equal(validate(nested), false);
+    assert.ok(
+      validate.errors?.some(
+        (error) =>
+          error.keyword === "required" &&
+          error.instancePath === "" &&
+          error.params.missingProperty === "resource",
+      ),
+      JSON.stringify(validate.errors),
+    );
+  });
+
+  const validMediaTypes = [
+    "text/plain",
+    "Text/Plain",
+    "application/vnd.api+json",
+    "a!#$&^_.+-z/b!#$&^_.+-y",
+    `${"a".repeat(127)}/${"b".repeat(127)}`,
+  ];
+  for (const mimeType of validMediaTypes) {
+    await t.test(`media type ${mimeType.slice(0, 30)}`, () => {
+      const candidate = structuredClone(fixture);
+      candidate.bookie.mime_type = mimeType;
+      assert.equal(validate(candidate), true, JSON.stringify(validate.errors));
+    });
+  }
+
+  const invalidMediaTypes = [
+    "text/\u0000plain",
+    "text/ plain",
+    "text/plain\n",
+    "text/plain/json",
+    "text/*",
+    "*/plain",
+    "text/plain; charset=utf-8",
+    "!/plain",
+    "-x/y",
+    "text/.",
+    "a/+json",
+    `${"a".repeat(128)}/plain`,
+    `text/${"b".repeat(128)}`,
+  ];
+  for (const mimeType of invalidMediaTypes) {
+    await t.test(
+      `invalid media type ${JSON.stringify(mimeType).slice(0, 40)}`,
+      () => {
+        const candidate = structuredClone(fixture);
+        candidate.bookie.mime_type = mimeType;
+        assert.equal(
+          validate(candidate),
+          false,
+          `${JSON.stringify(mimeType)} passed`,
+        );
+        assert.ok(
+          validate.errors?.some(
+            (error) =>
+              error.keyword === "pattern" &&
+              error.instancePath === "/bookie/mime_type",
+          ),
+          JSON.stringify(validate.errors),
+        );
+      },
+    );
+  }
+
+  const validOrigins = [
+    "https://example.com/source?id=1#section",
+    "http://localhost:8080/source",
+    "HTTPS://EXAMPLE.COM/source",
+    "https://example.com./source",
+    "https://example.com:080/source",
+    "https://example.com:000080/source",
+    "https://example.com:000065535/source",
+    "https://example.com:50000/source",
+    "https://example.com:60000/source",
+    "https://example.com:65000/source",
+    "https://example.com:65520/source",
+    "https://[::1]/source",
+    "https://192.168.1.1./source",
+    "https://192.168.1.1:65535/source",
+  ];
+  for (const origin of validOrigins) {
+    await t.test(`origin ${origin}`, () => {
+      const candidate = structuredClone(fixture);
+      candidate.bookie.origin = origin;
+      assert.equal(validate(candidate), true, JSON.stringify(validate.errors));
+    });
+  }
+
+  const invalidOrigins = [
+    ["not a URL", "pattern"],
+    ["ftp://example.com/source", "pattern"],
+    ["file:///tmp/source", "pattern"],
+    ["javascript:alert(1)", "pattern"],
+    ["/relative/source", "pattern"],
+    ["https://", "pattern"],
+    ["http:///source", "pattern"],
+    ["https://user:secret@example.com/source", "pattern"],
+    ["https://example.com/%ZZ", "pattern"],
+    ["https://256.256.256.256/source", "pattern"],
+    ["https://256.256.256.256./source", "pattern"],
+    ["https://[::::]/source", "format"],
+    ["https://example.com:65536/source", "pattern"],
+    ["https://example.com:000065536/source", "pattern"],
+    ["https://example.com:99999/source", "pattern"],
+  ];
+  for (const [origin, keyword] of invalidOrigins) {
+    await t.test(`invalid origin ${origin}`, () => {
+      const candidate = structuredClone(fixture);
+      candidate.bookie.origin = origin;
+      assert.equal(validate(candidate), false, `${origin} passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === keyword &&
+            error.instancePath === "/bookie/origin",
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("common schema rejects wrong JSON types at known locations", async (t) => {
+  const base = readFixture("valid", "project");
+  Object.assign(base, {
+    description: "description",
+    resource: "/source",
+    sources: [
+      {
+        id: "source",
+        resource: "/source",
+        title: "Source",
+        author: "human:docs",
+        usage_count: 1,
+        last_modified: "2024-02-29",
+        usage_window: { from: "2024-02-01", to: "2024-02-29" },
+      },
+    ],
+    verified: { by: "human:reviewer", at: "2024-02-29T00:00:00Z" },
+    stale_after: "2024-03-01",
+    usage_window: { from: "2024-02-01", to: "2024-02-29" },
+  });
+  Object.assign(base.bookie, {
+    project: "/projects/demo/project.md",
+    occurred_at: "2024-02-29T00:00:00Z",
+    captured_at: "2024-02-29T00:00:00Z",
+    sensitivity: "public",
+    relations: [{}],
+    supports: ["/projects/demo/project.md"],
+    sha256: "a".repeat(64),
+    mime_type: "text/plain",
+    origin: "https://example.com/source",
+    external_ids: {},
+  });
+
+  const baseValidator = loadValidator("Project");
+  assert.equal(baseValidator(base), true, JSON.stringify(baseValidator.errors));
+
+  const cases = [
+    ["root", [], []],
+    ["type", ["type"], 1],
+    ["title", ["title"], 1],
+    ["description", ["description"], 1],
+    ["tags", ["tags"], null],
+    ["tag", ["tags", 0], 1],
+    ["status", ["status"], 1],
+    ["generated", ["generated"], null],
+    ["generated.by", ["generated", "by"], 1],
+    ["generated.at", ["generated", "at"], 1],
+    ["resource", ["resource"], 1],
+    ["sources", ["sources"], null],
+    ["source", ["sources", 0], 1],
+    ["source.id", ["sources", 0, "id"], 1],
+    ["source.resource", ["sources", 0, "resource"], 1],
+    ["source.title", ["sources", 0, "title"], 1],
+    ["source.author", ["sources", 0, "author"], 1],
+    ["source.usage_count", ["sources", 0, "usage_count"], 0.5],
+    ["source.last_modified", ["sources", 0, "last_modified"], 1],
+    ["source.usage_window", ["sources", 0, "usage_window"], 1],
+    ["source.usage_window.from", ["sources", 0, "usage_window", "from"], 1],
+    ["source.usage_window.to", ["sources", 0, "usage_window", "to"], 1],
+    ["verified", ["verified"], 1],
+    ["verified.by", ["verified", "by"], 1],
+    ["verified.at", ["verified", "at"], 1],
+    ["stale_after", ["stale_after"], 1],
+    ["usage_window", ["usage_window"], 1],
+    ["usage_window.from", ["usage_window", "from"], 1],
+    ["usage_window.to", ["usage_window", "to"], 1],
+    ["bookie", ["bookie"], null],
+    ["bookie.profile", ["bookie", "profile"], 1],
+    ["bookie.uid", ["bookie", "uid"], 1],
+    ["bookie.project", ["bookie", "project"], 1],
+    ["bookie.scope", ["bookie", "scope"], 1],
+    ["bookie.state", ["bookie", "state"], 1],
+    ["bookie.created_at", ["bookie", "created_at"], 1],
+    ["bookie.occurred_at", ["bookie", "occurred_at"], 1],
+    ["bookie.captured_at", ["bookie", "captured_at"], 1],
+    ["bookie.sensitivity", ["bookie", "sensitivity"], 1],
+    ["bookie.relations", ["bookie", "relations"], null],
+    ["bookie.relation", ["bookie", "relations", 0], 1],
+    ["bookie.supports", ["bookie", "supports"], null],
+    ["bookie.support", ["bookie", "supports", 0], 1],
+    ["bookie.sha256", ["bookie", "sha256"], 1],
+    ["bookie.mime_type", ["bookie", "mime_type"], 1],
+    ["bookie.origin", ["bookie", "origin"], 1],
+    ["bookie.external_ids", ["bookie", "external_ids"], null],
+  ];
+
+  for (const [name, path, replacement] of cases) {
+    await t.test(name, () => {
+      const fixture = setAtPath(structuredClone(base), path, replacement);
+      const validate = loadValidator("Project");
+      assert.equal(validate(fixture), false, `${name} unexpectedly passed`);
+      const instancePath = path.length === 0 ? "" : `/${path.join("/")}`;
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "type" && error.instancePath === instancePath,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("common collections and non-empty values enforce boundaries", async (t) => {
+  const cases = [
+    [
+      "title",
+      "Project",
+      "project",
+      (fixture) => (fixture.title = ""),
+      "minLength",
+      "/title",
+    ],
+    [
+      "resource",
+      "Project",
+      "project",
+      (fixture) => (fixture.resource = ""),
+      "minLength",
+      "/resource",
+    ],
+    [
+      "source id",
+      "Project",
+      "project",
+      (fixture) => (fixture.sources = [{ id: "", resource: "/source" }]),
+      "minLength",
+      "/sources/0/id",
+    ],
+    [
+      "source resource",
+      "Project",
+      "project",
+      (fixture) => (fixture.sources = [{ resource: "" }]),
+      "minLength",
+      "/sources/0/resource",
+    ],
+    [
+      "source title",
+      "Project",
+      "project",
+      (fixture) => (fixture.sources = [{ resource: "/source", title: "" }]),
+      "minLength",
+      "/sources/0/title",
+    ],
+    [
+      "project",
+      "Task",
+      "task",
+      (fixture) => (fixture.bookie.project = ""),
+      "minLength",
+      "/bookie/project",
+    ],
+    [
+      "tag",
+      "Project",
+      "project",
+      (fixture) => (fixture.tags = [""]),
+      "minLength",
+      "/tags/0",
+    ],
+    [
+      "duplicate tags",
+      "Project",
+      "project",
+      (fixture) => (fixture.tags = ["demo", "demo"]),
+      "uniqueItems",
+      "/tags",
+    ],
+    [
+      "supports",
+      "Evidence",
+      "evidence",
+      (fixture) => (fixture.bookie.supports = []),
+      "minItems",
+      "/bookie/supports",
+    ],
+    [
+      "support",
+      "Evidence",
+      "evidence",
+      (fixture) => (fixture.bookie.supports = [""]),
+      "minLength",
+      "/bookie/supports/0",
+    ],
+  ];
+
+  for (const [
+    name,
+    type,
+    fixtureName,
+    mutate,
+    keyword,
+    instancePath,
+  ] of cases) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", fixtureName);
+      mutate(fixture);
+      const validate = loadValidator(type);
+      assert.equal(validate(fixture), false, `${name} unexpectedly passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === keyword && error.instancePath === instancePath,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("custom top-level, known-object, and bookie extensions remain accepted", () => {
+  const fixture = readFixture("valid", "project");
+  const validate = loadValidator("Project");
+
+  fixture.custom_top_level = { retained: true };
+  fixture.generated.custom_generation = "retained";
+  fixture.sources = [
+    {
+      resource: "/source",
+      custom_source: "retained",
+      usage_window: {
+        from: "2024-02-01",
+        to: "2024-02-29",
+        custom_window: "retained",
+      },
+    },
+  ];
+  fixture.usage_window = {
+    from: "2024-02-01",
+    to: "2024-02-29",
+    custom_window: "retained",
+  };
+  fixture.verified = {
+    by: "human:reviewer",
+    at: "2024-02-29T00:00:00Z",
+    custom_verification: "retained",
+  };
+  fixture.bookie.custom_metadata = "retained";
+  fixture.bookie.created_at = "2024-02-29T00:00:00Z";
+  assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
 });

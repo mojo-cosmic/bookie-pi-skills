@@ -5,12 +5,12 @@
     "by": "human:demo",
     "at": "2026-06-27T10:00:00Z"
   },
+  "resource": "/references/files/source.txt",
   "bookie": {
     "profile": "1.0",
-    "uid": "PRJ-01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "uid": "EVD-01ARZ3NDEKTSV4RRFFQ69G5FAV",
     "project": "/projects/demo/project.md",
     "captured_at": "2026-06-27T10:00:00Z",
-    "resource": "/references/files/source.txt",
     "mime_type": "text/plain",
     "supports": ["/projects/demo/project.md"]
   },

@@ -36,6 +36,10 @@ This page is the stable entry point for product and engineering context.
 - [Profile 1.0 manifest schema](../schemas/profile/1.0/bookie-config.schema.json)
 - [Profile 1.0 manifest fixtures](../fixtures/profile/1.0/bookie-config/)
 - [Profile manifest schema tests](../test/bookie-config-schema.test.mjs)
+- [Common concept schema](../schemas/bookie-common.schema.json)
+- [Initial type schemas](../schemas/types/)
+- [Concept schema fixtures](../fixtures/concepts/1.0/)
+- [Concept schema tests](../test/concept-schema.test.mjs)
 - [Example vault](../examples/vault/)
 - [Repository contract tests](../test/repository.test.mjs)
 

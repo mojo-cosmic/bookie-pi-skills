@@ -1,0 +1,12 @@
+{
+  "type": "Research",
+  "title": "Project research",
+  "status": "draft",
+  "generated": { "by": "human:demo", "at": "2026-06-27T09:16:00Z" },
+  "bookie": {
+    "profile": "1.0",
+    "uid": "RSC-01ARZ3NDEKTSV4RRFFQ69G5FB3",
+    "project": "/projects/demo/project.md",
+    "created_at": "2026-06-27T09:16:00Z"
+  }
+}
