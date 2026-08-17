@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:type:evidence:1.0",
+  "title": "Bookie Evidence concept 1.0",
+  "allOf": [
+    {
+      "$ref": "urn:bookie:schema:common:1.0"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Evidence"
+        },
+        "bookie": {
+          "type": "object",
+          "required": [
+            "project",
+            "captured_at",
+            "sha256",
+            "mime_type",
+            "resource",
+            "supports"
+          ],
+          "properties": {
+            "project": true,
+            "captured_at": true,
+            "sha256": true,
+            "mime_type": true,
+            "resource": true,
+            "supports": true
+          }
+        }
+      }
+    }
+  ]
+}

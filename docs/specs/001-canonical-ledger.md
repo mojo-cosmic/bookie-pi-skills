@@ -119,6 +119,6 @@ The schema is a contract, not the complete policy engine. `SENSITIVITY-EXCLUSION
 
 ## Delivery notes
 
-BK-002 delivers the profile manifest schema and decoded configuration fixtures. The common metadata and concept schemas remain authoritative SPEC-001 artifacts and are deferred only from BK-002 to BK-003.
+BK-002 delivers the profile manifest schema and decoded configuration fixtures. BK-003 delivers the common metadata and initial concept schemas with decoded fixtures. Relation vocabulary, target normalization, inverse validation, exact type-prefix mapping, and Git-base policy remain BK-004 work.
 
 Implement schema and fixtures before the policy engine. Do not introduce a YAML round-trip library in this spec; that choice belongs to SPEC-002 and must demonstrate preservation behavior.

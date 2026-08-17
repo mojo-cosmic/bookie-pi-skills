@@ -1,0 +1,12 @@
+{
+  "type": "Activity",
+  "title": "Demo checkpoint",
+  "status": "stable",
+  "generated": { "by": "human:demo", "at": "2026-06-27T09:30:00Z" },
+  "bookie": {
+    "profile": "1.0",
+    "uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB0",
+    "project": "/projects/demo/project.md",
+    "occurred_at": "2026-06-27T09:30:00Z"
+  }
+}

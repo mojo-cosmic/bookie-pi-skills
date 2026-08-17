@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:type:research:1.0",
+  "title": "Bookie Research concept 1.0",
+  "allOf": [
+    {
+      "$ref": "urn:bookie:schema:common:1.0"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Research"
+        },
+        "bookie": {
+          "type": "object",
+          "required": ["created_at"],
+          "properties": {
+            "created_at": true
+          }
+        }
+      }
+    }
+  ]
+}

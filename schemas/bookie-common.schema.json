@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:common:1.0",
+  "title": "Bookie common concept metadata 1.0",
+  "description": "Shared decoded OKF frontmatter constraints. Concept and Bookie extension fields remain open so unknown metadata can be preserved.",
+  "type": "object",
+  "required": ["type", "title", "status", "generated", "bookie"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "status": {
+      "enum": ["draft", "stable", "deprecated"]
+    },
+    "generated": {
+      "type": "object",
+      "required": ["by", "at"],
+      "properties": {
+        "by": {
+          "type": "string",
+          "minLength": 1
+        },
+        "at": {
+          "$ref": "#/$defs/utcTimestamp"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "bookie": {
+      "type": "object",
+      "required": ["profile", "uid"],
+      "properties": {
+        "profile": {
+          "const": "1.0"
+        },
+        "uid": {
+          "$ref": "#/$defs/prefixedUlid"
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "occurred_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "captured_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "sensitivity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "supports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "resource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+        },
+        "mime_type": {
+          "type": "string",
+          "pattern": "^[^\\s/]+/[^\\s/]+(?![\\s\\S])"
+        },
+        "origin": {
+          "type": "string",
+          "minLength": 1
+        },
+        "external_ids": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "prefixedUlid": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}-[0-7][0-9A-HJKMNP-TV-Z]{25}(?![\\s\\S])"
+    },
+    "utcTimestamp": {
+      "description": "A UTC ISO 8601 timestamp with a calendar-valid proleptic Gregorian date, including leap years.",
+      "type": "string",
+      "pattern": "^(?:(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:00|0[48]|[2468][048]|[13579][26])00)-02-29)|(?:[0-9]{4}-(?:(?:(?:01|03|05|07|08|10|12)-(?:0[1-9]|[12][0-9]|3[01]))|(?:(?:04|06|09|11)-(?:0[1-9]|[12][0-9]|30))|(?:02-(?:0[1-9]|1[0-9]|2[0-8])))))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z(?![\\s\\S])"
+    }
+  }
+}
