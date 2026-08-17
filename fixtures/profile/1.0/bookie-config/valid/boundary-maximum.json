@@ -1,0 +1,30 @@
+{
+  "profile": "1.0",
+  "vault": {
+    "uid": "VLT-7ZZZZZZZZZZZZZZZZZZZZZZZZZ",
+    "title": "Maximum boundaries"
+  },
+  "allowed_concept_types": [
+    "Project",
+    "Task",
+    "Document",
+    "Research",
+    "Decision",
+    "Activity",
+    "Evidence",
+    "Person"
+  ],
+  "policy": {
+    "evidence_roots": [".evidence/Unicode-資料_1"],
+    "exclude": ["artifacts/*/generated/**"],
+    "sensitivity": {
+      "classes": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ],
+      "excluded_classes": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      ]
+    },
+    "attachment_max_bytes": 9007199254740991
+  }
+}

@@ -33,6 +33,9 @@ This page is the stable entry point for product and engineering context.
 
 ## Examples and checks
 
+- [Profile 1.0 manifest schema](../schemas/profile/1.0/bookie-config.schema.json)
+- [Profile 1.0 manifest fixtures](../fixtures/profile/1.0/bookie-config/)
+- [Profile manifest schema tests](../test/bookie-config-schema.test.mjs)
 - [Example vault](../examples/vault/)
 - [Repository contract tests](../test/repository.test.mjs)
 
