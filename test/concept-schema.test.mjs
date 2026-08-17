@@ -345,6 +345,77 @@ test("common schema rejects an incompatible profile version", () => {
   );
 });
 
+test("common UID syntax covers Crockford and 128-bit boundaries", async (t) => {
+  const validate = loadValidator("Project");
+
+  await t.test("highest leading ULID symbol", () => {
+    const fixture = readFixture("valid", "project");
+    fixture.bookie.uid = `PRJ-7${"Z".repeat(25)}`;
+    assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+  });
+
+  const invalidUids = [
+    ["lowercase prefix", `prj-0${"0".repeat(25)}`],
+    ["too short", `PRJ-0${"0".repeat(24)}`],
+    ["too long", `PRJ-0${"0".repeat(26)}`],
+    ["lowercase symbol", `PRJ-0${"0".repeat(24)}a`],
+    ...["I", "L", "O", "U"].map((symbol) => [
+      `forbidden ${symbol}`,
+      `PRJ-0${"0".repeat(24)}${symbol}`,
+    ]),
+  ];
+  for (const [name, uid] of invalidUids) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.uid = uid;
+      assert.equal(validate(fixture), false, `${uid} unexpectedly passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "pattern" && error.instancePath === "/bookie/uid",
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("UTC timestamps isolate calendar-day and clock boundaries", async (t) => {
+  const validate = loadValidator("Project");
+
+  await t.test("last clock value", () => {
+    const fixture = readFixture("valid", "project");
+    fixture.bookie.created_at = "9999-12-31T23:59:59.999Z";
+    assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+  });
+
+  const invalidTimestamps = [
+    ["day zero", "2026-01-00T00:00:00Z"],
+    ["hour 24", "2026-01-01T24:00:00Z"],
+    ["minute 60", "2026-01-01T23:60:00Z"],
+    ["second 60", "2026-01-01T23:59:60Z"],
+  ];
+  for (const [name, timestamp] of invalidTimestamps) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.created_at = timestamp;
+      assert.equal(
+        validate(fixture),
+        false,
+        `${timestamp} unexpectedly passed`,
+      );
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "pattern" &&
+            error.instancePath === "/bookie/created_at",
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
 test("all lifecycle and workflow enum values are covered", async (t) => {
   const cases = [
     ["Project", "project", ["status"], ["draft", "stable", "deprecated"]],
@@ -635,6 +706,34 @@ test("known OKF provenance, trust, freshness, and actor shapes validate", async 
         validate.errors?.some(
           (error) =>
             error.keyword === keyword && error.instancePath === instancePath,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("Evidence digest isolates lowercase hexadecimal and length boundaries", async (t) => {
+  const validate = loadValidator("Evidence");
+  const validFixture = readFixture("valid", "evidence");
+  assert.equal(validate(validFixture), true, JSON.stringify(validate.errors));
+
+  const invalidDigests = [
+    ["uppercase", "A".repeat(64)],
+    ["63 characters", "a".repeat(63)],
+    ["65 characters", "a".repeat(65)],
+    ["non-hexadecimal", `${"a".repeat(63)}g`],
+  ];
+  for (const [name, digest] of invalidDigests) {
+    await t.test(name, () => {
+      const fixture = structuredClone(validFixture);
+      fixture.bookie.sha256 = digest;
+      assert.equal(validate(fixture), false, `${name} digest passed`);
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "pattern" &&
+            error.instancePath === "/bookie/sha256",
         ),
         JSON.stringify(validate.errors),
       );
