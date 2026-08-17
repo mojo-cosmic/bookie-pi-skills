@@ -5,7 +5,7 @@
   "policy": {
     "evidence_roots": ["evidence"],
     "exclude": [],
-    "sensitivity": { "classes": ["Private_Data"], "excluded_classes": [] },
+    "sensitivity": { "classes": ["private_data"], "excluded_classes": [] },
     "attachment_max_bytes": 1
   }
 }

@@ -1,6 +1,6 @@
 {
   "profile": "1.0",
-  "vault": { "uid": "VLT-0I000000000000000000000000", "title": "x" },
+  "vault": { "uid": "VLT-000000000000000000000000000", "title": "x" },
   "allowed_concept_types": ["Project"],
   "policy": {
     "evidence_roots": ["evidence"],

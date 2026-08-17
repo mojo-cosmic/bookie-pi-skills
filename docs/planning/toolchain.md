@@ -1,6 +1,6 @@
 # Toolchain baseline
 
-Last reviewed: 2026-08-16 UTC
+Last reviewed: 2026-08-17 UTC
 
 This is the supported repository-development baseline, not a promise that every registry's highest major version is compatible.
 
