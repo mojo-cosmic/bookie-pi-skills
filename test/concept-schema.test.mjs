@@ -383,14 +383,22 @@ test("common UID syntax covers Crockford and 128-bit boundaries", async (t) => {
 test("UTC timestamps isolate calendar-day and clock boundaries", async (t) => {
   const validate = loadValidator("Project");
 
-  await t.test("last clock value", () => {
-    const fixture = readFixture("valid", "project");
-    fixture.bookie.created_at = "9999-12-31T23:59:59.999Z";
-    assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
-  });
+  const validTimestamps = [
+    ["last clock value", "9999-12-31T23:59:59.999Z"],
+    ["century leap day", "2000-02-29T00:00:00Z"],
+  ];
+  for (const [name, timestamp] of validTimestamps) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.created_at = timestamp;
+      assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+    });
+  }
 
   const invalidTimestamps = [
     ["day zero", "2026-01-00T00:00:00Z"],
+    ["30-day month overflow", "2026-04-31T00:00:00Z"],
+    ["non-leap century", "1900-02-29T00:00:00Z"],
     ["hour 24", "2026-01-01T24:00:00Z"],
     ["minute 60", "2026-01-01T23:60:00Z"],
     ["second 60", "2026-01-01T23:59:60Z"],

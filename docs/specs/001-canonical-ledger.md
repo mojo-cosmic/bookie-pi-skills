@@ -97,6 +97,8 @@ fixtures/profile/1.0/bookie-config/valid/*.json
 fixtures/profile/1.0/bookie-config/invalid/*.json
 schemas/bookie-common.schema.json
 schemas/types/*.schema.json
+fixtures/concepts/1.0/valid/*.json
+fixtures/concepts/1.0/invalid/*.json
 fixtures/valid-vault/
 fixtures/invalid-vaults/<case>/
 docs/reference/profile-v1.md
