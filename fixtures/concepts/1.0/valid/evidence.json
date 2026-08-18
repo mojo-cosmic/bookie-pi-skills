@@ -1,0 +1,17 @@
+{
+  "type": "Evidence",
+  "title": "Captured source",
+  "status": "stable",
+  "generated": { "by": "human:demo", "at": "2026-06-27T09:35:00Z" },
+  "resource": "/references/files/source.txt",
+  "bookie": {
+    "profile": "1.0",
+    "uid": "EVD-01ARZ3NDEKTSV4RRFFQ69G5FB1",
+    "project": "/projects/demo/project.md",
+    "captured_at": "2026-06-27T09:35:00Z",
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "mime_type": "text/plain",
+    "origin": "https://example.com/source.txt",
+    "supports": ["/projects/demo/project.md"]
+  }
+}

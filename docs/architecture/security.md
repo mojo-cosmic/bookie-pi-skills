@@ -78,7 +78,9 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 ## Sensitivity policy
 
-The profile supports deployment-specific classes such as `public`, `internal`, and `confidential`. A deployment declares which classes may be indexed by each embedding provider. Unknown classes fail closed. Secrets are never a supported class.
+The profile supports deployment-specific classes such as `public`, `internal`, and `confidential`. A deployment declares which classes may be indexed by each embedding provider; a class without provider approval fails closed at that provider boundary. Classes listed in `policy.sensitivity.excluded_classes` are excluded from indexing, checkpointing, logging, and export under REQ-026. Runtime behavior for a missing, reserved, or undeclared record class remains unresolved under OQ-007. Secrets are never a supported class.
+
+Project membership and `bookie.scope: shared` are retrieval metadata, not confidentiality boundaries. Shared Research remains confined to its vault; cross-vault access still requires the explicit authorization design in REQ-024.
 
 ## Practical audit guarantees
 

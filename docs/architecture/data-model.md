@@ -36,7 +36,7 @@ bookie:
   profile: "1.0"
   uid: TSK-01ARZ3NDEKTSV4RRFFQ69G5FAV
   project: /projects/demo/project.md
-  state: open
+  state: in_progress
   created_at: 2026-06-27T10:30:00Z
   relations:
     - kind: blocks
@@ -61,6 +61,7 @@ The body contains human-readable context, outcome, and type-specific sections. M
 | Underlying asset | `resource` |
 | Stable identity | `bookie.uid` |
 | Project membership | `bookie.project` |
+| Explicit vault-shared Research scope | `bookie.scope: shared` |
 | Task workflow | `bookie.state` |
 | Domain relationships | `bookie.relations` |
 | Creation/occurrence time | `bookie.created_at`, `bookie.occurred_at` |
@@ -75,11 +76,13 @@ The body contains human-readable context, outcome, and type-specific sections. M
 | Project | `uid`, `created_at`, `state` | Mutable |
 | Task | `uid`, `project`, `created_at`, `state` | Mutable |
 | Document | `uid`, `project`, `created_at` | Mutable |
-| Research | `uid`, `project` or shared scope, `created_at` | Mutable |
+| Research | `uid`, exactly one of `project` or `scope: shared`, `created_at` | Mutable |
 | Decision | `uid`, `project`, `created_at`, `state` | Superseded, not erased |
 | Activity | `uid`, `project`, `occurred_at` | Append-only after merge |
 | Evidence | `uid`, `project`, `captured_at`, `sha256`, `mime_type`, `supports` | Immutable after merge |
 | Person | `uid`, `created_at` | Mutable |
+
+Project-scoped Research records carry `bookie.project`. Research shared across projects in the same vault instead carries `bookie.scope: shared`; the two fields are mutually exclusive. Shared scope is retrieval metadata, not a confidentiality boundary, and never crosses a vault.
 
 ## Typed relations
 
@@ -120,7 +123,7 @@ The checkpoint contains a curated operational record, not a raw transcript.
 
 ## Evidence
 
-The Evidence concept describes immutable bytes at `resource`. Required digest input is the exact stored byte sequence. SHA-256 is lowercase hexadecimal. Origin URL, creator, capture method, and source timestamp are recorded when known. `supports` points to concepts whose claims the resource substantiates.
+The Evidence concept describes immutable bytes at the top-level OKF `resource`. Required digest input is the exact stored byte sequence. SHA-256 is lowercase hexadecimal. `mime_type` stores only the media type essence (`type/subtype`), without parameters or wildcards. When known, `bookie.origin` is an absolute HTTP(S) URL without embedded credentials; schema validity never authorizes dereferencing it. Creator, capture method, and source timestamp are recorded when known. `supports` points to concepts whose claims the resource substantiates.
 
 For an external resource that cannot be captured, create a Research or Document source reference instead of claiming immutable evidence.
 

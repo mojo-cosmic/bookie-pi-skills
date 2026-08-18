@@ -71,6 +71,18 @@ All listed objects are fixed-shape and reject unknown keys recursively. This str
 - `policy.sensitivity.classes` is a required, non-empty, duplicate-free array of vault sensitivity class declarations. `policy.sensitivity.excluded_classes` is a required duplicate-free array of vault-global exclusions. Both arrays use lowercase kebab-case tokens of at most 63 characters; `unknown` and `unclassified` are reserved sentinels and cannot be declared. The schema validates each array independently and does not require every excluded class to appear in the declarations array; every listed exclusion still remains excluded under REQ-026. These fields classify and exclude vault data; they do not authorize any provider. Provider-specific approval remains unresolved under OQ-007.
 - `policy.attachment_max_bytes` is a required integer from 1 through JavaScript's maximum safe integer, `9007199254740991`. The schema enforces integer and safe-range constraints on the decoded numeric value. The eventual YAML parser/runtime must also reject numeric scalar text whose conversion would lose precision, even when the rounded decoded value would pass this schema. YAML parser selection remains unresolved under OQ-002; this contract does not resolve it. The setting expresses a configured limit but establishes no product default; OQ-005 remains open.
 
+### Version 1.0 concept frontmatter contract
+
+The common schema at `schemas/bookie-common.schema.json` and the type schemas under `schemas/types/` validate decoded concept frontmatter while leaving unknown top-level, recognized-object, and `bookie` extension fields accepted. Acceptance demonstrates schema tolerance; lossless preservation remains a SPEC-002 writer obligation.
+
+- Bookie concepts require non-empty `type` and `title`, explicit OKF lifecycle `status`, a `generated` event, and `bookie.profile` plus `bookie.uid`. Type schemas fix each initial `type` and require the fields listed in the accepted data model.
+- OKF actor fields use `human:<id>`, `process:<id>`, or `<producer>/<version>`. `generated` and verification events require actor `by` and calendar-valid UTC `at` values.
+- Every `sources` entry requires a non-empty `resource`, and source authors use the same actor contract. Every `usage_count` is framed by either the shared top-level or that source's own `usage_window`. Known source fields, bare-or-list `verified`, `stale_after`, and usage-window values retain their OKF v0.2 shapes. Calendar dates are validated independently; ordering a usage window is runtime policy rather than a schema claim.
+- Research is either project-scoped with `bookie.project` or explicitly shared within its vault with `bookie.scope: shared`. Exactly one is required. Shared scope never crosses a vault and is not an authorization boundary.
+- Evidence uses top-level OKF `resource`; `bookie.resource` is not the canonical placement. `bookie.mime_type` is a media type essence containing type and subtype registration names of 1 through 127 characters each; parameters and wildcards are rejected. Optional `bookie.origin` accepts absolute HTTP(S) URLs without embedded credentials. Concept-schema validators MUST assert the standard `uri` format rather than treating it as annotation-only; lexical guards additionally constrain scheme, host, port, credentials, controls, and percent escapes. Origin validation is syntactic and never authorizes a fetch.
+
+These corrections remain within profile 1.0 because the concept schemas have not reached accepted `main` or a release. Once profile 1.0 is accepted, changing required placement or Research scope semantics is breaking and follows the migration rule in the accepted data model.
+
 ### Deferred runtime policy
 
 **`SENSITIVITY-EXCLUSION`** refines REQ-026: a record assigned a class listed in `policy.sensitivity.excluded_classes` MUST NOT be indexed, checkpointed, logged, or exported. This schema declares the exclusions but does not enforce operation behavior. Export enforcement belongs to SPEC-002/BK-011, checkpoint enforcement to SPEC-003/BK-015, and indexing enforcement to SPEC-004/BK-017; any logging implementation must apply the same requirement when introduced. This increment does not define runtime behavior for missing, reserved, or undeclared record classes and does not settle provider authorization; OQ-007 remains open.
@@ -85,6 +97,8 @@ fixtures/profile/1.0/bookie-config/valid/*.json
 fixtures/profile/1.0/bookie-config/invalid/*.json
 schemas/bookie-common.schema.json
 schemas/types/*.schema.json
+fixtures/concepts/1.0/valid/*.json
+fixtures/concepts/1.0/invalid/*.json
 fixtures/valid-vault/
 fixtures/invalid-vaults/<case>/
 docs/reference/profile-v1.md
@@ -97,7 +111,10 @@ The schema is a contract, not the complete policy engine. `SENSITIVITY-EXCLUSION
 - A generic OKF v0.2 consumer can parse every valid fixture.
 - Every non-reserved Markdown concept in the valid fixture has a non-empty `type`.
 - Each initial type has a documented valid example and at least one invalid fixture.
-- Schema validation rejects missing UID, malformed UID, invalid lifecycle, invalid workflow state, and missing type-specific fields.
+- Schema validation rejects missing UID, malformed UID, invalid lifecycle, every type-specific workflow state, every missing required field, and a mismatched type schema.
+- Project-scoped and explicitly shared Research fixtures pass; missing, invalid, or conflicting Research scope fails.
+- Evidence requires top-level `resource`; Bookie-only resource placement, malformed media types, and invalid or credential-bearing origin URLs fail.
+- Known OKF provenance, actor, trust, freshness, and date shapes reject malformed values while unknown extensions remain accepted.
 - Named cross-file rules cover broken relations, inverse mismatch, missing evidence resource, digest mismatch, immutable edit/deletion, and invalid decision supersession.
 - Unknown custom frontmatter is accepted and declared preservable.
 - The example profile contains no secrets or environment-specific credentials.
@@ -106,7 +123,8 @@ The schema is a contract, not the complete policy engine. `SENSITIVITY-EXCLUSION
 ## Test strategy
 
 - Direct Ajv 8 JSON Schema 2020-12 strict-mode meta-validation and positive/negative decoded JSON fixtures.
-- Table-driven UID, enum, timestamp, and relation examples.
+- Table-driven required-field, wrong-type, UID, actor, enum, timestamp, Research-scope, media-type, origin, and relation examples.
+- Exact invalid-fixture diagnostics include keyword, instance path, and missing property where applicable.
 - OKF envelope checks for every Markdown fixture.
 - Mutation fixtures comparing a base and proposed tree for each immutable-policy boundary.
 - Digest fixtures containing valid bytes, changed bytes, missing files, and path escapes.
@@ -119,6 +137,6 @@ The schema is a contract, not the complete policy engine. `SENSITIVITY-EXCLUSION
 
 ## Delivery notes
 
-BK-002 delivers the profile manifest schema and decoded configuration fixtures. The common metadata and concept schemas remain authoritative SPEC-001 artifacts and are deferred only from BK-002 to BK-003.
+BK-002 delivers the profile manifest schema and decoded configuration fixtures. BK-003 delivers the common metadata and initial concept schemas with decoded fixtures, including explicit Research scope, top-level Evidence resource placement, and recognized OKF metadata shapes. Relation vocabulary, target normalization, inverse validation, exact type-prefix mapping, and Git-base policy remain BK-004 work.
 
 Implement schema and fixtures before the policy engine. Do not introduce a YAML round-trip library in this spec; that choice belongs to SPEC-002 and must demonstrate preservation behavior.

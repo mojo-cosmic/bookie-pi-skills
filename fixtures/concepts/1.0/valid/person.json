@@ -1,0 +1,11 @@
+{
+  "type": "Person",
+  "title": "Demo person",
+  "status": "stable",
+  "generated": { "by": "human:demo", "at": "2026-06-27T09:40:00Z" },
+  "bookie": {
+    "profile": "1.0",
+    "uid": "PER-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+    "created_at": "2026-06-27T09:40:00Z"
+  }
+}

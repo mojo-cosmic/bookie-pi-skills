@@ -1,0 +1,13 @@
+{
+  "title": "Invalid fixture",
+  "status": "stable",
+  "generated": {
+    "by": "human:demo",
+    "at": "2026-06-27T10:00:00Z"
+  },
+  "bookie": {
+    "profile": "1.0",
+    "uid": "PER-01ARZ3NDEKTSV4RRFFQ69G5FAV"
+  },
+  "type": "Person"
+}

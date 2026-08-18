@@ -22,7 +22,7 @@ This is the supported repository-development baseline, not a promise that every 
 | TypeScript | 6.0 | Latest line accepted by the current `typescript-eslint` peer range. |
 | `typescript-eslint` | 8 | Current major; supports ESLint 10 but requires TypeScript below 6.1. |
 | `@types/node` | 24 | Intentionally matches the Node 24 runtime rather than the registry's Node 26 types. |
-| Ajv | 8 | Direct test dependency for strict JSON Schema 2020-12 meta-validation and decoded fixture validation. |
+| Ajv / `ajv-formats` | 8 / 3 | Direct test dependencies for strict JSON Schema 2020-12 meta-validation, decoded fixture validation, and asserted standard URI formats. |
 
 TypeScript 7 and Node 26 types are intentionally not selected: they are not compatible with the current parser/runtime baseline. They are upgrade candidates, not stale patch dependencies.
 

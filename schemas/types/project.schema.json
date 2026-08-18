@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:type:project:1.0",
+  "title": "Bookie Project concept 1.0",
+  "allOf": [
+    {
+      "$ref": "urn:bookie:schema:common:1.0"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Project"
+        },
+        "bookie": {
+          "type": "object",
+          "required": ["created_at", "state"],
+          "properties": {
+            "state": {
+              "enum": ["active", "paused", "completed", "archived"]
+            },
+            "created_at": true
+          }
+        }
+      }
+    }
+  ]
+}

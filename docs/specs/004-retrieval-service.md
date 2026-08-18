@@ -58,7 +58,7 @@ The concrete protocol requires versioned request/response schemas before impleme
 - Partial or failed builds never replace the active complete generation.
 - A model migration can shadow-query, cut over, and roll back without mixed vector ranking.
 - Warm service-side retrieval meets p95 under 500 ms on the initial benchmark excluding external embedding latency.
-- Logs and metrics do not expose configured secret or excluded fixture content.
+- A record assigned an excluded class produces no Redis projection or chunk, no embedding input, and no search/context result; its UID, path, and marker content are absent from logs and metrics while an included control record remains retrievable.
 - Docker exposes no Redis host port in the default configuration.
 - Restart, cancellation, duplicate rebuild, malformed concept, oversized input, and provider-rate-limit paths are tested.
 
@@ -71,6 +71,7 @@ The concrete protocol requires versioned request/response schemas before impleme
 - Destructive rebuild/cutover/rollback tests and cross-vault adversarial tests.
 - Load test using the documented initial scale or a representative synthetic corpus.
 - Failure injection for Redis, provider, cancellation, partial write, and stale checkout.
+- Mixed-sensitivity builds inspect Redis projections, fake embedding calls, search/context responses, and captured logs/metrics for positive inclusion and excluded-data omission.
 
 ## Dependencies
 

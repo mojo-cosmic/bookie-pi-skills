@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:common:1.0",
+  "title": "Bookie common concept metadata 1.0",
+  "description": "Shared decoded OKF frontmatter constraints. Concept and Bookie extension fields remain open so unknown metadata can be preserved.",
+  "type": "object",
+  "required": ["type", "title", "status", "generated", "bookie"],
+  "properties": {
+    "type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "stable", "deprecated"]
+    },
+    "generated": {
+      "type": "object",
+      "required": ["by", "at"],
+      "properties": {
+        "by": {
+          "$ref": "#/$defs/actor"
+        },
+        "at": {
+          "$ref": "#/$defs/utcTimestamp"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "usage_window": {
+      "$ref": "#/$defs/usageWindow"
+    },
+    "verified": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/verificationEvent"
+        },
+        {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/verificationEvent"
+          }
+        }
+      ]
+    },
+    "stale_after": {
+      "$ref": "#/$defs/calendarDate"
+    },
+    "bookie": {
+      "type": "object",
+      "required": ["profile", "uid"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "const": "1.0"
+        },
+        "uid": {
+          "$ref": "#/$defs/prefixedUlid"
+        },
+        "project": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "description": "Explicit vault-shared scope for Research concepts; project-scoped Research uses bookie.project instead.",
+          "type": "string",
+          "const": "shared"
+        },
+        "state": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "occurred_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "captured_at": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "sensitivity": {
+          "type": "string",
+          "minLength": 1
+        },
+        "relations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "supports": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])"
+        },
+        "mime_type": {
+          "description": "A media type essence containing only type/subtype registration names; parameters and wildcards are not accepted.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+\\-]{0,126}/[A-Za-z0-9][A-Za-z0-9!#$&^_.+\\-]{0,126}(?![\\s\\S])"
+        },
+        "origin": {
+          "description": "An absolute HTTP(S) origin URL without user information. Validation is syntactic and never authorizes dereference.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^(?![\\s\\S]*%(?![0-9A-Fa-f]{2}))[Hh][Tt][Tt][Pp][Ss]?://(?:(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\\.?|(?!(?:[0-9]+\\.){3}[0-9]+\\.?(?::|[/?#]|(?![\\s\\S])))[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*\\.?|\\[[0-9A-Fa-f:.]+\\])(?::0*(?:[0-9]{1,4}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?(?:[/?#][^\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]*)?(?![\\s\\S])"
+        },
+        "external_ids": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "array",
+              "not": {
+                "contains": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "required": ["usage_count"],
+                      "properties": {
+                        "usage_count": true
+                      }
+                    },
+                    {
+                      "not": {
+                        "type": "object",
+                        "required": ["usage_window"],
+                        "properties": {
+                          "usage_window": true
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["usage_window"],
+          "properties": {
+            "usage_window": true
+          }
+        }
+      ]
+    }
+  ],
+  "additionalProperties": true,
+  "$defs": {
+    "actor": {
+      "description": "An OKF actor: human:<id>, process:<id>, or <producer>/<version>.",
+      "type": "string",
+      "pattern": "^(?:(?:human|process):[^\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+|[^/\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+/[^/\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+)(?![\\s\\S])"
+    },
+    "calendarDate": {
+      "description": "A calendar-valid proleptic Gregorian date in YYYY-MM-DD form, including leap years.",
+      "type": "string",
+      "pattern": "^(?:(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:00|0[48]|[2468][048]|[13579][26])00)-02-29)|(?:[0-9]{4}-(?:(?:(?:01|03|05|07|08|10|12)-(?:0[1-9]|[12][0-9]|3[01]))|(?:(?:04|06|09|11)-(?:0[1-9]|[12][0-9]|30))|(?:02-(?:0[1-9]|1[0-9]|2[0-8])))))(?![\\s\\S])"
+    },
+    "prefixedUlid": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}-[0-7][0-9A-HJKMNP-TV-Z]{25}(?![\\s\\S])"
+    },
+    "source": {
+      "type": "object",
+      "required": ["resource"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "resource": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "author": {
+          "$ref": "#/$defs/actor"
+        },
+        "usage_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "last_modified": {
+          "$ref": "#/$defs/calendarDate"
+        },
+        "usage_window": {
+          "$ref": "#/$defs/usageWindow"
+        }
+      },
+      "additionalProperties": true
+    },
+    "usageWindow": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": {
+        "from": {
+          "$ref": "#/$defs/calendarDate"
+        },
+        "to": {
+          "$ref": "#/$defs/calendarDate"
+        }
+      },
+      "additionalProperties": true
+    },
+    "utcTimestamp": {
+      "description": "A UTC ISO 8601 timestamp with a calendar-valid proleptic Gregorian date, including leap years.",
+      "type": "string",
+      "pattern": "^(?:(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:00|0[48]|[2468][048]|[13579][26])00)-02-29)|(?:[0-9]{4}-(?:(?:(?:01|03|05|07|08|10|12)-(?:0[1-9]|[12][0-9]|3[01]))|(?:(?:04|06|09|11)-(?:0[1-9]|[12][0-9]|30))|(?:02-(?:0[1-9]|1[0-9]|2[0-8])))))T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?Z(?![\\s\\S])"
+    },
+    "verificationEvent": {
+      "type": "object",
+      "required": ["by", "at"],
+      "properties": {
+        "by": {
+          "$ref": "#/$defs/actor"
+        },
+        "at": {
+          "$ref": "#/$defs/utcTimestamp"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

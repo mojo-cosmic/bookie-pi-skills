@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:type:task:1.0",
+  "title": "Bookie Task concept 1.0",
+  "allOf": [
+    {
+      "$ref": "urn:bookie:schema:common:1.0"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Task"
+        },
+        "bookie": {
+          "type": "object",
+          "required": ["project", "created_at", "state"],
+          "properties": {
+            "state": {
+              "enum": [
+                "proposed",
+                "ready",
+                "in_progress",
+                "blocked",
+                "done",
+                "cancelled"
+              ]
+            },
+            "project": true,
+            "created_at": true
+          }
+        }
+      }
+    }
+  ]
+}

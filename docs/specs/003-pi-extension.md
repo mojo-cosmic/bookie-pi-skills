@@ -53,6 +53,7 @@ Non-interactive calls that require approval must fail with a clear instruction u
 - Mutation tests prove serialization through the file mutation queue.
 - Checkpoint preview/confirm/write succeeds in TUI and refuses ambiguous approval in print/JSON mode.
 - Declining a checkpoint writes nothing and does not cancel compaction.
+- A mixed-sensitivity checkpoint retains included context but omits excluded UIDs, paths, and marker content from its preview, written Activity, diagnostics, and logs.
 - No lifecycle hook creates canonical files during ordinary agent completion.
 - Service outage returns labelled local fallback results; total retrieval failure throws or returns an explicit failed/degraded contract rather than an empty success.
 - Tool outputs truncate at documented byte/line limits and point to a retrievable full artifact where appropriate.
@@ -65,6 +66,7 @@ Non-interactive calls that require approval must fail with a clear instruction u
 - Tool contract tests against temporary example vaults.
 - Parallel mutation test that would lose an update without queueing.
 - TUI, RPC/print, cancellation, decline, service-failure, and output-boundary tests.
+- Mixed-sensitivity checkpoint tests capture preview output, Activity bytes, diagnostics, and logs, proving included content remains and excluded identifiers/content do not.
 - Package smoke test through `pi -e` or local package installation in CI where Pi is available.
 - Static test denying `git commit`, `git push`, credential logging, and writes outside core mutation APIs.
 

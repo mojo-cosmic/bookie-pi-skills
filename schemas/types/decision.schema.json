@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:bookie:schema:type:decision:1.0",
+  "title": "Bookie Decision concept 1.0",
+  "allOf": [
+    {
+      "$ref": "urn:bookie:schema:common:1.0"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "Decision"
+        },
+        "bookie": {
+          "type": "object",
+          "required": ["project", "created_at", "state"],
+          "properties": {
+            "state": {
+              "enum": ["proposed", "accepted", "rejected", "superseded"]
+            },
+            "project": true,
+            "created_at": true
+          }
+        }
+      }
+    }
+  ]
+}
