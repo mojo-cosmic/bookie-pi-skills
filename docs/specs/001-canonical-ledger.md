@@ -2,7 +2,9 @@
 
 ## Status
 
-In progress
+Implemented
+
+Verification pending: SPEC-002 now provides production lossless YAML loading and current-tree whole-vault enforcement; Git-base immutability, retention, and pinned-identity rules remain BK-009.
 
 Owner: unassigned  
 Target release: 0.1  
@@ -65,11 +67,11 @@ All listed objects are fixed-shape and reject unknown keys recursively. This str
 
 - `profile` is required and is exactly the string `"1.0"`. A different string is not implicitly compatible with this schema.
 - `vault` is required and contains only required `uid` and `title`. `uid` is `VLT-` followed by a canonical uppercase Crockford Base32 ULID: 26 symbols, excluding `I`, `L`, `O`, and `U`, with a leading ULID symbol from `0` through `7` so values do not exceed 128 bits. `title` is a non-empty string.
-- `allowed_concept_types` is the normative descriptive manifest key. It is a required, non-empty, duplicate-free array whose members are exactly `Project`, `Task`, `Document`, `Research`, `Decision`, `Activity`, `Evidence`, or `Person`. It does not establish a centralized OKF type registry.
+- `allowed_concept_types` is the normative manifest allow-list for Bookie concepts. It is a required, non-empty, duplicate-free array whose members are exactly `Project`, `Task`, `Document`, `Research`, `Decision`, `Activity`, `Evidence`, or `Person`. Every concept carrying `bookie.profile` MUST use a listed type or fail `TYPE-ALLOWED`. Generic non-Bookie OKF concepts remain outside this profile allow-list, so it does not establish a centralized OKF type registry.
 - `policy.evidence_roots` is a required, non-empty, duplicate-free array of lexical relative POSIX paths. Each path consists of non-empty slash-separated segments. Absolute paths, empty segments, `.` or `..` segments, backslashes, the metacharacters `*`, `?`, `[`, `]`, `{`, `}`, and `!`, colons (including Windows drive and URI-like forms), percent-encoded forms, C0 controls, DEL, C1 controls, and lone UTF-16 surrogates are rejected. Other characters with glob meaning in some runtimes, including extglob punctuation, are not excluded by this schema; runtimes MUST treat evidence roots as literal paths rather than glob expressions. Valid Unicode scalar path characters remain intentionally supported and require ECMAScript Unicode regex semantics. This is only a lexical schema boundary: filesystem containment, normalization against a vault root, and realpath/symlink handling remain runtime policy and are not claimed here.
 - `policy.exclude` is a required duplicate-free array of constrained relative POSIX glob strings. Each slash-separated segment is either a literal made from ASCII letters, digits, `.`, `_`, and `-`, or exactly `*` or `**`. Absolute paths, empty segments, `.` or `..` segments, backslashes, and all other glob syntax are rejected. Matching and glob execution remain runtime policy.
 - `policy.sensitivity.classes` is a required, non-empty, duplicate-free array of vault sensitivity class declarations. `policy.sensitivity.excluded_classes` is a required duplicate-free array of vault-global exclusions. Both arrays use lowercase kebab-case tokens of at most 63 characters; `unknown` and `unclassified` are reserved sentinels and cannot be declared. The schema validates each array independently and does not require every excluded class to appear in the declarations array; every listed exclusion still remains excluded under REQ-026. These fields classify and exclude vault data; they do not authorize any provider. Provider-specific approval remains unresolved under OQ-007.
-- `policy.attachment_max_bytes` is a required integer from 1 through JavaScript's maximum safe integer, `9007199254740991`. The schema enforces integer and safe-range constraints on the decoded numeric value. The eventual YAML parser/runtime must also reject numeric scalar text whose conversion would lose precision, even when the rounded decoded value would pass this schema. YAML parser selection remains unresolved under OQ-002; this contract does not resolve it. The setting expresses a configured limit but establishes no product default; OQ-005 remains open.
+- `policy.attachment_max_bytes` is a required integer from 1 through JavaScript's maximum safe integer, `9007199254740991`. The schema enforces integer and safe-range constraints on the decoded numeric value. The YAML parser/runtime must also reject numeric scalar text whose conversion would lose precision, even when the rounded decoded value would pass this schema. ADR-0005 selects that production strategy and SPEC-002 enforces precision before schema validation. The setting expresses a configured limit but establishes no product default; OQ-005 remains open.
 
 ### Version 1.0 concept frontmatter contract
 
@@ -81,7 +83,100 @@ The common schema at `schemas/bookie-common.schema.json` and the type schemas un
 - Research is either project-scoped with `bookie.project` or explicitly shared within its vault with `bookie.scope: shared`. Exactly one is required. Shared scope never crosses a vault and is not an authorization boundary.
 - Evidence uses top-level OKF `resource`; `bookie.resource` is not the canonical placement. `bookie.mime_type` is a media type essence containing type and subtype registration names of 1 through 127 characters each; parameters and wildcards are rejected. Optional `bookie.origin` accepts absolute HTTP(S) URLs without embedded credentials. Concept-schema validators MUST assert the standard `uri` format rather than treating it as annotation-only; lexical guards additionally constrain scheme, host, port, credentials, controls, and percent escapes. Origin validation is syntactic and never authorizes a fetch.
 
-These corrections remain within profile 1.0 because the concept schemas have not reached accepted `main` or a release. Once profile 1.0 is accepted, changing required placement or Research scope semantics is breaking and follows the migration rule in the accepted data model.
+These corrections remain within profile 1.0 because the concept schemas have not reached a release. Once profile 1.0 is released, changing required placement or Research scope semantics is breaking and follows the migration rule in the accepted data model.
+
+### Profile 1.0 identity and relation contract
+
+The common schema validates prefixed-ULID syntax. Each initial type schema additionally fixes this prefix mapping:
+
+| Type | UID prefix | Example |
+|---|---|---|
+| Project | `PRJ-` | `PRJ-01ARZ3NDEKTSV4RRFFQ69G5FAV` |
+| Task | `TSK-` | `TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW` |
+| Document | `DOC-` | `DOC-01ARZ3NDEKTSV4RRFFQ69G5FAX` |
+| Research | `RSC-` | `RSC-01ARZ3NDEKTSV4RRFFQ69G5FAY` |
+| Decision | `DSN-` | `DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ` |
+| Activity | `ACT-` | `ACT-01ARZ3NDEKTSV4RRFFQ69G5FB0` |
+| Evidence | `EVD-` | `EVD-01ARZ3NDEKTSV4RRFFQ69G5FB1` |
+| Person | `PER-` | `PER-01ARZ3NDEKTSV4RRFFQ69G5FB2` |
+
+`bookie.project`, every `bookie.relations[*].target`, and every `bookie.supports[*]` value is a lexical bundle-absolute POSIX concept path: it has exactly one leading `/`, non-empty slash-separated segments, and a final `.md` suffix. Empty, `.` and `..` segments; backslashes; colons; percent signs; query or fragment markers; C0, DEL, or C1 controls; and lone UTF-16 surrogates are invalid. Unicode scalar values and spaces remain valid. Validators do not percent-decode, case-fold, Unicode-normalize, or apply host-OS path normalization; the decoded string must exactly match the tracked concept path.
+
+Paths may change without changing a Bookie UID only while cross-file references can be updated consistently. A concept referenced by an Activity or Evidence already present in the Git base tree is path-pinned while that immutable record remains in the vault: the target cannot be renamed or deleted because its stored project, relation, or support path cannot be amended. This is a deliberate profile 1.0 portability constraint; aliases and UID-only fallback are not defined.
+
+An Evidence top-level `resource` follows the same lexical rules but may use any non-empty final filename rather than `.md`. Runtime policy additionally applies configured-root containment and filesystem checks under `EVIDENCE-RESOURCE`.
+
+A relation contains required `kind` and `target` strings and may contain `target_uid`. A cached `target_uid` never replaces path resolution and must equal the resolved concept UID. Unknown relation extension fields remain accepted and preservable. Exact duplicate relation objects fail schema validation; `RELATION-TARGET` also rejects duplicate `(kind, target)` pairs even if extension fields differ.
+
+The profile does not otherwise restrict source/target type combinations. Project ownership and Evidence support have the specific target constraints named below. Supersession is limited to Decision-to-Decision replacement and same-type Activity or Evidence correction; Task, Project, Document, Research, and Person cannot use `supersedes` or `superseded_by`, and Activity/Evidence cannot store `superseded_by`.
+
+| Relation kind | Required inverse | Profile 1.0 meaning |
+|---|---|---|
+| `part_of` | None | Source is a constituent of the target. |
+| `relates_to` | `relates_to` | Symmetric general association. |
+| `blocks` | `blocked_by` | Source blocks progress on the target. |
+| `blocked_by` | `blocks` | Source is blocked by the target. |
+| `depends_on` | None | Source requires the target. |
+| `supports` | None | Source supports a claim or outcome in the target. Evidence support remains authoritative in `bookie.supports`; no mirrored relation is required. |
+| `supersedes` | `superseded_by` | Source replaces the target. Decision reciprocity is required; immutable Activity/Evidence corrections use the exception below. |
+| `superseded_by` | `supersedes` | Source was replaced by the target. |
+| `owned_by` | None | Source is owned by the target. |
+
+### Named cross-file policy rules
+
+These codes are the stable profile 1.0 contract for future SPEC-002 diagnostics. BK-004 supplies declarative decoded fixtures; executable whole-vault and Git-base enforcement belongs to BK-007 and BK-009.
+
+#### `TYPE-ALLOWED`
+
+Every proposed concept carrying `bookie.profile` has a `type` listed in the vault manifest's `allowed_concept_types`. The allow-list constrains Bookie profile records, not generic OKF types.
+
+#### `UID-UNIQUE`
+
+Every Bookie UID occurs at most once in the proposed vault tree. Validation cannot prove global uniqueness outside the vault, but writers must generate ULIDs rather than reuse identifiers.
+
+#### `PROJECT-TARGET`
+
+Every `bookie.project` path resolves in the proposed tree to a schema-valid Project concept. Project membership never crosses a vault. A project path stored by a Git-base Activity or Evidence is path-pinned and must continue resolving to the same UID.
+
+#### `RELATION-TARGET`
+
+Every relation target resolves in the proposed tree to a schema-valid Bookie concept. A present `target_uid` equals the resolved UID. Self-supersession, a repeated `(kind, target)` pair, a missing target, a target with a mismatched cached UID, and a supersession relation outside the allowed Decision/Activity/Evidence combinations fail this rule. A target path stored by a Git-base Activity or Evidence is path-pinned and must continue resolving to the same UID.
+
+#### `RELATION-INVERSE`
+
+`relates_to`, `blocks`/`blocked_by`, and Decision `supersedes`/`superseded_by` relations have the inverse shown in the vocabulary table. The target must contain exactly the corresponding `(inverse kind, source path)` pair and any cached UID must match. `supersedes` from a new Activity or Evidence correction is the only inverse exception because the merged predecessor cannot be amended; consumers discover that replacement from the incoming edge.
+
+#### `DECISION-SUPERSESSION`
+
+A Decision already present in the Git base tree is retained. A replacement is a distinct, schema-valid Decision in the same project with `status: stable`, `bookie.state: accepted`, and an outgoing `supersedes` relation. Each predecessor has `status: deprecated`, `bookie.state: superseded`, and exactly one reciprocal `superseded_by` relation to the replacement. Self-links, cycles, cross-project or wrong-type targets, missing reciprocal links, and multiple replacements for one predecessor fail. One accepted replacement may supersede multiple predecessors.
+
+#### `ACTIVITY-IMMUTABLE`
+
+Every Activity in the supplied Git base tree remains at the same path with the same UID and exact Markdown blob bytes. Edit, deletion, or rename fails. A correction is a new same-project Activity with a new UID and one outgoing `supersedes` relation to the unchanged predecessor.
+
+#### `EVIDENCE-IMMUTABLE`
+
+Every Evidence concept in the supplied Git base tree remains at the same path with the same UID, resource path, and exact Markdown blob bytes. Edit, deletion, or rename fails. A correction is a new same-project Evidence concept with a new UID and one outgoing `supersedes` relation to the unchanged predecessor.
+
+#### `EVIDENCE-RESOURCE`
+
+The Evidence `resource` path, after removing its leading `/`, is contained on a path-segment boundary beneath one configured literal `policy.evidence_roots` path. It resolves inside the real vault root to a tracked regular file with exactly one filesystem link, not a directory, symlink, hardlink alias, or submodule, and its byte size does not exceed `policy.attachment_max_bytes`. Missing files, traversal, root escapes, and changes or deletion of bytes referenced by Git-base Evidence fail.
+
+#### `EVIDENCE-DIGEST`
+
+SHA-256 is computed over the exact stored resource bytes without text decoding or newline normalization and equals lowercase `bookie.sha256`.
+
+#### `EVIDENCE-SUPPORT`
+
+Every `bookie.supports` path resolves in the proposed tree to a schema-valid Bookie concept. A support path stored by Git-base Evidence is path-pinned and must continue resolving to the same UID. At least one support is required by the Evidence schema; no mirrored `supports` relation is required.
+
+### Profile compatibility and migration
+
+Profile versions are exact `MAJOR.MINOR` schema identifiers. Additive optional changes create a minor schema; an older reader may expose a newer minor as generic read-only OKF but must not claim Bookie validation or mutate it without declared compatibility. Changed meaning, required fields, enum removals, or incompatible placement require a breaking major and explicit migration with dry-run, complete validation, backwards-compatibility fixtures, and Git rollback.
+
+A major migration never rewrites merged Activity or Evidence merely to change `bookie.profile`. The target profile must explicitly recognize each retained historical schema for legacy immutable records; those records retain exact bytes and validate against their declared schema, while new corrections use the target profile. If the target cannot recognize all retained immutable profiles, migration fails. The complete operational contract is documented in the [profile 1.0 reference](../reference/profile-v1.md#compatibility-and-migration).
+
+The current `schemas/bookie-common.schema.json` and `schemas/types/*.schema.json` files are the frozen concept schema set for profile 1.0. Before accepting another profile generation, an ADR and migration increment must copy that set into a version-addressed registry, keep these canonical 1.0 URIs resolvable, and make runtime selection explicit by each record's declared profile. A later profile must not edit the only retained copy of an historical schema.
 
 ### Deferred runtime policy
 
@@ -99,6 +194,8 @@ schemas/bookie-common.schema.json
 schemas/types/*.schema.json
 fixtures/concepts/1.0/valid/*.json
 fixtures/concepts/1.0/invalid/*.json
+fixtures/policy/1.0/{valid,invalid}/cases.json
+fixtures/policy/1.0/resources/*
 fixtures/valid-vault/
 fixtures/invalid-vaults/<case>/
 docs/reference/profile-v1.md
@@ -137,6 +234,6 @@ The schema is a contract, not the complete policy engine. `SENSITIVITY-EXCLUSION
 
 ## Delivery notes
 
-BK-002 delivers the profile manifest schema and decoded configuration fixtures. BK-003 delivers the common metadata and initial concept schemas with decoded fixtures, including explicit Research scope, top-level Evidence resource placement, and recognized OKF metadata shapes. Relation vocabulary, target normalization, inverse validation, exact type-prefix mapping, and Git-base policy remain BK-004 work.
+BK-002 delivers the profile manifest schema and decoded configuration fixtures. BK-003 delivers the common metadata and initial concept schemas with decoded fixtures, including explicit Research scope, top-level Evidence resource placement, and recognized OKF metadata shapes. BK-004 delivers exact type-prefix mapping, relation/path schema constraints, stable cross-file rule codes, and materializable decoded base/proposed policy fixtures. BK-005 delivers the complete profile reference, migration/compatibility contract, human-readable example vault, and full valid/invalid Markdown vault fixtures. The fixture test oracle schema-validates records and isolates expected rule boundaries. BK-006 in SPEC-002 consumes the format through production lossless loading, and BK-007 enforces schemas plus current-tree links, relations, resources, and digests. Git-base immutability, retained Decisions, pinned identities, and base resource changes remain BK-009.
 
-Implement schema and fixtures before the policy engine. Do not introduce a YAML round-trip library in this spec; that choice belongs to SPEC-002 and must demonstrate preservation behavior.
+Implement schema and fixtures before the policy engine. The YAML round-trip choice belongs to SPEC-002 and is recorded by ADR-0005 with executable preservation evidence; it is not a SPEC-001 schema constraint.

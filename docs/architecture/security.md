@@ -38,7 +38,7 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 **Threat:** crafted tool input or concept resource escapes the configured vault.
 
-**Controls:** resolve canonical absolute paths; reject paths outside the real vault root; account for symlinks; use allowlisted reference roots; queue the resolved target path; test encoded, relative, absolute, and symlink escapes.
+**Controls:** resolve canonical absolute paths; reject paths outside the real vault root; account for symlinks and hardlinks; use allowlisted reference roots; queue the resolved target path; test encoded, relative, absolute, symlink, and multiply-linked escapes. Read-only vault validation requires no-follow opens, rejects files with multiple links, snapshots every ancestor's device, inode, link count, mode, size, and high-resolution change/modify times around enumeration or reading, rejects encoded Markdown path separators, and rechecks deduplicated identities and real paths at completion. A platform without no-follow support fails closed. Mutation APIs still require their own queued read-modify-write window.
 
 ### Concurrent lost updates
 
@@ -50,7 +50,7 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 **Threat:** secrets enter records, checkpoints, logs, images, or exports.
 
-**Controls:** environment/secret-manager credentials; excluded path and sensitivity policies; pre-write and pre-index secret scanning; metadata-only query logs; redacted error messages; no credential fields in canonical schemas.
+**Controls:** environment/secret-manager credentials; excluded path and sensitivity policies; pre-write and pre-index secret scanning; metadata-only query logs; hierarchical redaction of excluded concept, OKF source-resource, project, relation, support, Evidence-resource, and local-link paths; static error messages; no credential fields in canonical schemas.
 
 ### Cross-vault leakage
 
@@ -68,7 +68,7 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 **Threat:** parsers consume hostile documents or exhaust resources.
 
-**Controls:** initial ingestion is Markdown plus explicitly allowed evidence types; size, chunk, depth, and timeout limits; no execution of attachments; sandbox future extractors; disclose skipped content.
+**Controls:** initial ingestion is Markdown plus explicitly allowed evidence types; size, chunk, depth, and timeout limits; no execution of attachments; sandbox future extractors; disclose skipped content. Evidence validation streams exact bytes through SHA-256 from one no-follow file handle and rechecks high-resolution identity metadata rather than buffering attachments. CommonMark analysis rejects excessive AST container depth and sends suspicious container input to a cancellable five-second worker. The synchronous core YAML loader enforces byte/depth bounds and a hostile-input regression budget; bulk CLI/service YAML ingestion must add a cancellable worker or process deadline rather than pretending a synchronous parser can be interrupted in place.
 
 ### Unauthorized service or Redis access
 

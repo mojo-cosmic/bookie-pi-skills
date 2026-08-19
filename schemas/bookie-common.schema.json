@@ -84,8 +84,7 @@
           "$ref": "#/$defs/prefixedUlid"
         },
         "project": {
-          "type": "string",
-          "minLength": 1
+          "$ref": "#/$defs/conceptPath"
         },
         "scope": {
           "description": "Explicit vault-shared scope for Research concepts; project-scoped Research uses bookie.project instead.",
@@ -111,17 +110,17 @@
         },
         "relations": {
           "type": "array",
+          "uniqueItems": true,
           "items": {
-            "type": "object",
-            "additionalProperties": true
+            "$ref": "#/$defs/relation"
           }
         },
         "supports": {
           "type": "array",
           "minItems": 1,
+          "uniqueItems": true,
           "items": {
-            "type": "string",
-            "minLength": 1
+            "$ref": "#/$defs/conceptPath"
           }
         },
         "sha256": {
@@ -197,14 +196,53 @@
       "type": "string",
       "pattern": "^(?:(?:human|process):[^\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+|[^/\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+/[^/\\s\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+)(?![\\s\\S])"
     },
+    "bundleFilePath": {
+      "description": "A lexical bundle-absolute POSIX file path. Runtime containment and symlink checks remain cross-file policy.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^/(?!/)(?:(?!\\.{1,2}/)[^/\\\\:%?#\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+/)*(?!\\.{1,2}(?![\\s\\S]))[^/\\\\:%?#\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+(?![\\s\\S])"
+    },
     "calendarDate": {
       "description": "A calendar-valid proleptic Gregorian date in YYYY-MM-DD form, including leap years.",
       "type": "string",
       "pattern": "^(?:(?:(?:[0-9]{2}(?:0[48]|[2468][048]|[13579][26])|(?:00|0[48]|[2468][048]|[13579][26])00)-02-29)|(?:[0-9]{4}-(?:(?:(?:01|03|05|07|08|10|12)-(?:0[1-9]|[12][0-9]|3[01]))|(?:(?:04|06|09|11)-(?:0[1-9]|[12][0-9]|30))|(?:02-(?:0[1-9]|1[0-9]|2[0-8])))))(?![\\s\\S])"
     },
+    "conceptPath": {
+      "description": "A lexical bundle-absolute POSIX path to a Markdown concept.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^/(?!/)(?:(?!\\.{1,2}/)[^/\\\\:%?#\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+/)*[^/\\\\:%?#\\u0000-\\u001F\\u007F-\\u009F\\uD800-\\uDFFF]+\\.md(?![\\s\\S])"
+    },
     "prefixedUlid": {
       "type": "string",
       "pattern": "^[A-Z]{3}-[0-7][0-9A-HJKMNP-TV-Z]{25}(?![\\s\\S])"
+    },
+    "relation": {
+      "type": "object",
+      "required": ["kind", "target"],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "part_of",
+            "relates_to",
+            "blocks",
+            "blocked_by",
+            "depends_on",
+            "supports",
+            "supersedes",
+            "superseded_by",
+            "owned_by"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/conceptPath"
+        },
+        "target_uid": {
+          "$ref": "#/$defs/prefixedUlid"
+        }
+      },
+      "additionalProperties": true
     },
     "source": {
       "type": "object",

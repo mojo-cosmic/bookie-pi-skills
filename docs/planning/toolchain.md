@@ -8,7 +8,7 @@ This is the supported repository-development baseline, not a promise that every 
 
 | Tool | Baseline | Policy |
 |---|---:|---|
-| Node.js | 24 | Pinned by `.nvmrc`; workspace engine is `>=24`. Use Node 24 in CI until an ADR changes the runtime line. |
+| Node.js | 24 | Pinned by `.nvmrc`; root and packable package engines are `>=24`. Use Node 24 in CI until an ADR changes the runtime line. |
 | npm | 11.9.0 | Recorded in `packageManager`; refresh the lockfile only with a compatible npm 11 release. |
 | Pi | Current release when SPEC-003 starts | No repository dependency exists yet. Add peer dependencies and a smoke-test matrix when the extension imports Pi APIs. |
 
@@ -22,7 +22,9 @@ This is the supported repository-development baseline, not a promise that every 
 | TypeScript | 6.0 | Latest line accepted by the current `typescript-eslint` peer range. |
 | `typescript-eslint` | 8 | Current major; supports ESLint 10 but requires TypeScript below 6.1. |
 | `@types/node` | 24 | Intentionally matches the Node 24 runtime rather than the registry's Node 26 types. |
-| Ajv / `ajv-formats` | 8 / 3 | Direct test dependencies for strict JSON Schema 2020-12 meta-validation, decoded fixture validation, and asserted standard URI formats. |
+| Ajv / `ajv-formats` | 8 / 3 | Strict JSON Schema 2020-12 validation and URI formats in both repository conformance tests and the packaged core vault validator. |
+| `yaml` | 2 | Generic YAML 1.2 fixture reader and the ADR-0005 core Document parser. Core retains raw source for exact no-op serialization and keeps parser AST types private. |
+| `mdast-util-from-markdown` | 2 | Inert CommonMark AST parsing for local link/image/reference validation without rendering, raw-HTML traversal, or network access. |
 
 TypeScript 7 and Node 26 types are intentionally not selected: they are not compatible with the current parser/runtime baseline. They are upgrade candidates, not stale patch dependencies.
 
@@ -40,7 +42,8 @@ TypeScript 7 and Node 26 types are intentionally not selected: they are not comp
 
 Repository tests verify:
 
-- `.nvmrc` and root engine alignment;
+- `.nvmrc`, root engine, and package engine alignment;
+- `@bookie/core` runs its build during `npm pack`, and a clean relocated tarball contains code, declarations, canonical schema assets, and a complete declared runtime dependency set;
 - pinned npm package-manager syntax;
 - workspace name/version/private-state alignment with the lockfile;
 - OKF and example profile version consistency;

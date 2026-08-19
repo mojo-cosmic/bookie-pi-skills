@@ -39,7 +39,7 @@ A dedicated Git repository contains OKF concepts, Bookie profile metadata, refer
 
 ### Core library
 
-A TypeScript package owns parsing, normalization, profile validation, typed relations, hashing, lifecycle policy, filesystem search, and the canonical export model. It contains no Pi, HTTP server, Redis, or provider-specific behavior.
+A TypeScript package owns parsing, normalization, profile validation, typed relations, hashing, lifecycle policy, filesystem search, and the canonical export model. Per ADR-0005 it combines a private YAML v2 Document AST with retained source bytes so no-op concept loading is lossless. It contains no Pi, HTTP server, Redis, or provider-specific behavior.
 
 ### CLI
 

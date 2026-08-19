@@ -22,6 +22,29 @@ const typeNames = [
   "Person",
 ];
 
+const uidPrefixes = {
+  Project: "PRJ",
+  Task: "TSK",
+  Document: "DOC",
+  Research: "RSC",
+  Decision: "DSN",
+  Activity: "ACT",
+  Evidence: "EVD",
+  Person: "PER",
+};
+
+const relationKinds = [
+  "part_of",
+  "relates_to",
+  "blocks",
+  "blocked_by",
+  "depends_on",
+  "supports",
+  "supersedes",
+  "superseded_by",
+  "owned_by",
+];
+
 const validFixtures = {
   activity: "Activity",
   decision: "Decision",
@@ -197,6 +220,22 @@ test("common and initial type schemas meta-validate in Ajv strict mode", () => {
     true,
     ajv.errorsText(ajv.errors),
   );
+  assert.deepEqual(
+    commonSchema.$defs.relation.properties.kind.enum,
+    relationKinds,
+    "Relation vocabulary drifted",
+  );
+  for (const name of ["bundleFilePath", "conceptPath", "prefixedUlid"]) {
+    assert.ok(
+      commonSchema.$defs[name].pattern.endsWith("(?![\\s\\S])"),
+      `${name} must use the portable absolute end guard`,
+    );
+    assert.equal(
+      commonSchema.$defs[name].pattern.includes("$"),
+      false,
+      `${name} must not use a permissive terminal $ anchor`,
+    );
+  }
   ajv.addSchema(commonSchema);
 
   for (const type of typeNames) {
@@ -380,6 +419,36 @@ test("common UID syntax covers Crockford and 128-bit boundaries", async (t) => {
   }
 });
 
+test("every concept type requires its assigned UID prefix", async (t) => {
+  for (const [type, prefix] of Object.entries(uidPrefixes)) {
+    await t.test(type, () => {
+      const fixtureName = type.toLowerCase();
+      const fixture = readFixture("valid", fixtureName);
+      const validate = loadValidator(type);
+      assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
+
+      for (const wrongPrefix of Object.values(uidPrefixes).filter(
+        (candidate) => candidate !== prefix,
+      )) {
+        fixture.bookie.uid = `${wrongPrefix}-${fixture.bookie.uid.slice(4)}`;
+        assert.equal(
+          validate(fixture),
+          false,
+          `${type} accepted ${wrongPrefix}`,
+        );
+        assert.ok(
+          validate.errors?.some(
+            (error) =>
+              error.keyword === "pattern" &&
+              error.instancePath === "/bookie/uid",
+          ),
+          JSON.stringify(validate.errors),
+        );
+      }
+    });
+  }
+});
+
 test("UTC timestamps isolate calendar-day and clock boundaries", async (t) => {
   const validate = loadValidator("Project");
 
@@ -469,6 +538,160 @@ test("all lifecycle and workflow enum values are covered", async (t) => {
         validate.errors?.some(
           (error) =>
             error.keyword === "enum" &&
+            error.instancePath === `/${path.join("/")}`,
+        ),
+        JSON.stringify(validate.errors),
+      );
+    });
+  }
+});
+
+test("relations and canonical concept paths enforce the profile vocabulary", async (t) => {
+  const validateProject = loadValidator("Project");
+
+  for (const kind of relationKinds) {
+    await t.test(kind, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.relations = [
+        {
+          kind,
+          target: "/projects/Δ demo/target.md",
+          target_uid: "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW",
+        },
+      ];
+      assert.equal(
+        validateProject(fixture),
+        true,
+        JSON.stringify(validateProject.errors),
+      );
+    });
+  }
+
+  const invalidRelations = [
+    ["unknown kind", { kind: "contains", target: "/target.md" }, "enum"],
+    ["missing kind", { target: "/target.md" }, "required"],
+    ["missing target", { kind: "relates_to" }, "required"],
+    [
+      "malformed target UID",
+      { kind: "relates_to", target: "/target.md", target_uid: "TSK-bad" },
+      "pattern",
+    ],
+  ];
+  for (const [name, relation, keyword] of invalidRelations) {
+    await t.test(name, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.relations = [relation];
+      assert.equal(
+        validateProject(fixture),
+        false,
+        `${name} unexpectedly passed`,
+      );
+      assert.ok(
+        validateProject.errors?.some((error) => error.keyword === keyword),
+        JSON.stringify(validateProject.errors),
+      );
+    });
+  }
+
+  await t.test("duplicate exact relation", () => {
+    const fixture = readFixture("valid", "project");
+    const relation = { kind: "relates_to", target: "/target.md" };
+    fixture.bookie.relations = [relation, structuredClone(relation)];
+    assert.equal(validateProject(fixture), false);
+    assert.ok(
+      validateProject.errors?.some(
+        (error) =>
+          error.keyword === "uniqueItems" &&
+          error.instancePath === "/bookie/relations",
+      ),
+      JSON.stringify(validateProject.errors),
+    );
+  });
+
+  const invalidConceptPaths = [
+    "projects/target.md",
+    "//projects/target.md",
+    "/projects/./target.md",
+    "/projects/../target.md",
+    "/projects//target.md",
+    "/projects\\target.md",
+    "/projects/%2e%2e/target.md",
+    "/projects/target?name.md",
+    "/projects/target.md#section",
+    "/projects/name:target.md",
+    "/projects/\u0000target.md",
+    "/projects/\u0085target.md",
+    "/projects/\ud800target.md",
+    "/projects/target.txt",
+    "/projects/target.md\n",
+  ];
+  for (const path of invalidConceptPaths) {
+    await t.test(`invalid concept path ${JSON.stringify(path)}`, () => {
+      const fixture = readFixture("valid", "project");
+      fixture.bookie.relations = [{ kind: "relates_to", target: path }];
+      assert.equal(
+        validateProject(fixture),
+        false,
+        `${path} unexpectedly passed`,
+      );
+      assert.ok(
+        validateProject.errors?.some(
+          (error) =>
+            error.keyword === "pattern" &&
+            error.instancePath === "/bookie/relations/0/target",
+        ),
+        JSON.stringify(validateProject.errors),
+      );
+    });
+  }
+
+  const task = readFixture("valid", "task");
+  task.bookie.project = "/projects/Δ 🧪 demo/project.md";
+  assert.equal(
+    loadValidator("Task")(task),
+    true,
+    "Unicode project path should pass",
+  );
+
+  const evidence = readFixture("valid", "evidence");
+  evidence.resource = "/references/files/exact 🧪 bytes.bin";
+  evidence.bookie.supports = ["/projects/Δ 🧪 demo/project.md"];
+  assert.equal(
+    loadValidator("Evidence")(evidence),
+    true,
+    "normalized Evidence paths should pass",
+  );
+
+  const invalidReferencePaths = [
+    ["Task", "task", ["bookie", "project"], "projects/demo/project.md"],
+    ["Task", "task", ["bookie", "project"], "/projects/demo/project?old.md"],
+    ["Evidence", "evidence", ["bookie", "supports", 0], "/project.txt"],
+    [
+      "Evidence",
+      "evidence",
+      ["bookie", "supports", 0],
+      "/projects/\ud800target.md",
+    ],
+    ["Evidence", "evidence", ["resource"], "/references/files/../secret.txt"],
+    ["Evidence", "evidence", ["resource"], "/references/files/source?raw.txt"],
+  ];
+  for (const [type, fixtureName, path, replacement] of invalidReferencePaths) {
+    await t.test(`invalid ${type} ${path.join(".")}`, () => {
+      const fixture = setAtPath(
+        readFixture("valid", fixtureName),
+        path,
+        replacement,
+      );
+      const validate = loadValidator(type);
+      assert.equal(
+        validate(fixture),
+        false,
+        `${replacement} unexpectedly passed`,
+      );
+      assert.ok(
+        validate.errors?.some(
+          (error) =>
+            error.keyword === "pattern" &&
             error.instancePath === `/${path.join("/")}`,
         ),
         JSON.stringify(validate.errors),
@@ -906,7 +1129,13 @@ test("common schema rejects wrong JSON types at known locations", async (t) => {
     occurred_at: "2024-02-29T00:00:00Z",
     captured_at: "2024-02-29T00:00:00Z",
     sensitivity: "public",
-    relations: [{}],
+    relations: [
+      {
+        kind: "relates_to",
+        target: "/projects/demo/project.md",
+        target_uid: "PRJ-01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      },
+    ],
     supports: ["/projects/demo/project.md"],
     sha256: "a".repeat(64),
     mime_type: "text/plain",
@@ -959,6 +1188,9 @@ test("common schema rejects wrong JSON types at known locations", async (t) => {
     ["bookie.sensitivity", ["bookie", "sensitivity"], 1],
     ["bookie.relations", ["bookie", "relations"], null],
     ["bookie.relation", ["bookie", "relations", 0], 1],
+    ["bookie.relation.kind", ["bookie", "relations", 0, "kind"], 1],
+    ["bookie.relation.target", ["bookie", "relations", 0, "target"], 1],
+    ["bookie.relation.target_uid", ["bookie", "relations", 0, "target_uid"], 1],
     ["bookie.supports", ["bookie", "supports"], null],
     ["bookie.support", ["bookie", "supports", 0], 1],
     ["bookie.sha256", ["bookie", "sha256"], 1],
@@ -1121,5 +1353,12 @@ test("custom top-level, known-object, and bookie extensions remain accepted", ()
   };
   fixture.bookie.custom_metadata = "retained";
   fixture.bookie.created_at = "2024-02-29T00:00:00Z";
+  fixture.bookie.relations = [
+    {
+      kind: "relates_to",
+      target: "/projects/demo/project.md",
+      custom_relation: "retained",
+    },
+  ];
   assert.equal(validate(fixture), true, JSON.stringify(validate.errors));
 });

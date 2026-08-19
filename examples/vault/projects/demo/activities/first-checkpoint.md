@@ -20,17 +20,26 @@ bookie:
   relations:
     - kind: relates_to
       target: /projects/demo/tasks/first-task.md
+      target_uid: TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW
   external_ids: {}
 ---
 
 # Outcome
 
-Created the [first task fixture](../tasks/first-task.md) and verified the repository-level OKF envelope check.
+Completed the portable profile fixture with every initial concept type, exact-byte Evidence, and resolvable relations.
 
-# Decisions
+# Changed artifacts
 
-The fixture remains intentionally minimal until SPEC-001 defines the complete profile.
+Created the [first task](../tasks/first-task.md), [overview](../documents/overview.md), [research](../research/format-findings.md), [decision](../decisions/canonical-store.md), and [Evidence](../evidence/canonical-store-source.md).
+
+# Decisions and evidence
+
+The [canonical storage decision](../decisions/canonical-store.md) is supported by captured Evidence and its exact digest.
+
+# Validation
+
+Repository contract, schema, path, relation, and digest fixture checks pass.
 
 # Unresolved work
 
-Implement the versioned schemas and full valid/invalid fixture corpus.
+Lossless YAML parsing and runtime cross-file validation remain SPEC-002 work.

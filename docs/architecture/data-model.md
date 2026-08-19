@@ -11,8 +11,8 @@ Bookie must remain valid to a generic OKF consumer. Custom metadata lives under 
 ## Identity
 
 - OKF concept ID: bundle-relative path without `.md`.
-- Bookie UID: immutable ULID with a human-readable type prefix, such as `TSK-01J...`.
-- Path changes do not change the UID.
+- Bookie UID: immutable ULID with a profile-assigned type prefix: `PRJ`, `TSK`, `DOC`, `RSC`, `DSN`, `ACT`, `EVD`, or `PER` for the initial types.
+- Path changes do not change the UID; however, targets referenced from merged immutable records are path-pinned until a future profile defines portable aliases or UID fallback. The exact mapping and constraint are normative in [SPEC-001](../specs/001-canonical-ledger.md#profile-10-identity-and-relation-contract).
 - Links use standard Markdown paths; Bookie relation targets use bundle-absolute Markdown file paths including `.md` and may additionally cache a target UID after validation.
 - External IDs are namespaced by destination and never replace the Bookie UID.
 
@@ -86,19 +86,9 @@ Project-scoped Research records carry `bookie.project`. Research shared across p
 
 ## Typed relations
 
-Initial relation kinds are deliberately small:
+Initial relation kinds are deliberately small: `part_of`, `relates_to`, `blocks`, `blocked_by`, `depends_on`, `supports`, `supersedes`, `superseded_by`, and `owned_by`.
 
-- `part_of`
-- `relates_to`
-- `blocks`
-- `blocked_by`
-- `depends_on`
-- `supports`
-- `supersedes`
-- `superseded_by`
-- `owned_by`
-
-Validation checks that targets exist and that inverse relations agree where the profile requires an inverse. New relation kinds require a profile revision, not an arbitrary writer convention.
+Relations require a kind and bundle-absolute Markdown target; an optional cached target UID must match the resolved concept. `relates_to` is symmetric, `blocks`/`blocked_by` are inverses, and Decision `supersedes`/`superseded_by` are inverses. New Activity and Evidence corrections use an incoming `supersedes` edge without modifying the immutable predecessor. Other kinds have no required inverse. The exact lexical path contract and named cross-file diagnostics are normative in [SPEC-001](../specs/001-canonical-ledger.md#profile-10-identity-and-relation-contract). New relation kinds require a profile revision, not an arbitrary writer convention.
 
 ## Lifecycle rules
 
@@ -130,11 +120,11 @@ For an external resource that cannot be captured, create a Research or Document 
 ## Audit policy
 
 - Git is the accepted change log.
-- CI compares immutable concepts against the target branch and rejects edits or deletion.
-- An Activity or Evidence correction creates a new concept with `supersedes`; the original bytes remain unchanged and consumers follow the incoming replacement relation.
+- SPEC-002 CI validation must compare immutable concepts against the target branch and reject edits, deletion, or rename; Evidence resource bytes must also be retained and digest-verified.
+- An Activity or Evidence correction creates a new same-project concept with `supersedes`; the original bytes remain unchanged and consumers follow the incoming replacement relation.
 - `log.md` is a human-readable derived chronology and cannot substitute for Git or Activity records.
 - Signed commits and WORM storage are outside the initial practical-audit target.
 
 ## Profile evolution
 
-`bookie.profile` uses a major/minor string. Additive optional fields increment minor. Changed meaning, required fields, or enum removals increment major and require a migration command plus backwards-compatibility tests.
+`bookie.profile` uses a major/minor string. Additive optional fields increment minor. Changed meaning, required fields, or enum removals increment major and require a migration command plus backwards-compatibility tests. Major migrations never rewrite merged Activity/Evidence merely to update the profile marker: a target profile must explicitly recognize their historical schema as legacy immutable data, or the migration refuses. New corrections use the target profile.

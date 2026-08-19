@@ -12,11 +12,12 @@ Open questions are not permission to guess. Resolve them by the listed deadline,
 
 ## OQ-002: YAML round-trip implementation
 
-- **State:** Open; blocks lossless core parsing.
+- **State:** Resolved 2026-08-18 by [ADR-0005](../architecture/decisions/0005-yaml-document-ast.md).
 - **Question:** Which maintained TypeScript YAML library and update strategy best preserve comments, ordering, unknown fields, multiline scalars, and untouched body bytes?
-- **Current direction:** Benchmark document-AST editing rather than parse/stringify normalization using the SPEC-001 fixture corpus.
-- **Decision deadline:** Before BK-006.
-- **Owner:** Core implementer; record result in an ADR if it changes dependency policy.
+- **Decision:** Use `yaml` v2 Document AST in core while retaining the original validated UTF-8 source. No-op serialization returns original bytes; future mutation edits the AST and reuses untouched body bytes. Parser types remain private to core.
+- **Evidence:** [`test/yaml-roundtrip-decision.test.mjs`](../../test/yaml-roundtrip-decision.test.mjs) reproduces the corpus and synthetic-edit checks. The profile corpus parsed successfully and the edit retained comments, key order, quoting, unknown nodes, and block-scalar styles. Direct AST stringification was byte-identical for 0 of 16 corpus frontmatter documents because flow whitespace/layout was normalized, which makes retained raw source mandatory rather than optional.
+- **Revisit trigger:** A golden mutation loses protected source structure, byte-stable untouched frontmatter within a changed concept becomes required, the v2 line becomes unmaintained, or bounded parser performance fails.
+- **Owner:** Core implementer.
 
 ## OQ-003: Initial service authentication
 

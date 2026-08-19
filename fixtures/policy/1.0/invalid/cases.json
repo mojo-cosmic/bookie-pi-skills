@@ -1,0 +1,2135 @@
+[
+  {
+    "id": "activity-correction-multiple-predecessors",
+    "profile": "1.0",
+    "description": "One Activity correction points to two merged predecessors instead of exactly one.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/old.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          },
+          {
+            "path": "/projects/demo/activities/second.md",
+            "fixture": "activity",
+            "patch": {
+              "title": "Second checkpoint",
+              "bookie": {
+                "uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB5"
+              }
+            },
+            "body": "Second original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/old.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          },
+          {
+            "path": "/projects/demo/activities/correction.md",
+            "fixture": "activity",
+            "patch": {
+              "title": "Checkpoint correction",
+              "bookie": {
+                "uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB3",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/activities/old.md",
+                    "target_uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB0"
+                  },
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/activities/second.md",
+                    "target_uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB5"
+                  }
+                ]
+              }
+            },
+            "body": "Checkpoint correction.\n"
+          },
+          {
+            "path": "/projects/demo/activities/second.md",
+            "fixture": "activity",
+            "patch": {
+              "title": "Second checkpoint",
+              "bookie": {
+                "uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB5"
+              }
+            },
+            "body": "Second original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-TARGET"]
+    }
+  },
+  {
+    "id": "activity-deleted",
+    "profile": "1.0",
+    "description": "A merged Activity is absent from the proposed tree.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["ACTIVITY-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "activity-edited",
+    "profile": "1.0",
+    "description": "A merged Activity body changes by one byte.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint!\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["ACTIVITY-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "activity-renamed",
+    "profile": "1.0",
+    "description": "A merged Activity moves to another path while retaining its UID and exact bytes.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/renamed.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["ACTIVITY-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "decision-deleted",
+    "profile": "1.0",
+    "description": "A Decision present in the Git base tree is deleted instead of retained or superseded.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["DECISION-SUPERSESSION"]
+    }
+  },
+  {
+    "id": "decision-supersession-lifecycle",
+    "profile": "1.0",
+    "description": "A reciprocal Decision replacement leaves the predecessor stable and accepted.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2"
+                  }
+                ]
+              }
+            },
+            "body": "Original decision; proposed supersession.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  }
+                ]
+              }
+            },
+            "body": "Replacement decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["DECISION-SUPERSESSION"]
+    }
+  },
+  {
+    "id": "decision-supersession-missing-reciprocal",
+    "profile": "1.0",
+    "description": "A Decision replacement lacks the predecessor reciprocal relation.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "status": "deprecated",
+              "bookie": {
+                "state": "superseded",
+                "relations": []
+              }
+            },
+            "body": "Original decision; proposed supersession.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  }
+                ]
+              }
+            },
+            "body": "Replacement decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-INVERSE", "DECISION-SUPERSESSION"]
+    }
+  },
+  {
+    "id": "decision-supersession-missing-successor",
+    "profile": "1.0",
+    "description": "A Decision is marked superseded without a reciprocal replacement Decision.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "status": "deprecated",
+              "bookie": {
+                "state": "superseded",
+                "relations": []
+              }
+            },
+            "body": "Original decision; superseded.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["DECISION-SUPERSESSION"]
+    }
+  },
+  {
+    "id": "decision-supersession-multiple-replacements",
+    "profile": "1.0",
+    "description": "One predecessor points to two accepted replacement Decisions.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "status": "deprecated",
+              "bookie": {
+                "state": "superseded",
+                "relations": [
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2"
+                  },
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/second-new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB7"
+                  }
+                ]
+              }
+            },
+            "body": "Original decision; superseded.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  }
+                ]
+              }
+            },
+            "body": "Replacement decision.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/second-new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Second replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB7",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  }
+                ]
+              }
+            },
+            "body": "Second replacement decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["DECISION-SUPERSESSION"]
+    }
+  },
+  {
+    "id": "evidence-deleted",
+    "profile": "1.0",
+    "description": "A merged Evidence concept is absent while its resource remains.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "evidence-digest-mismatch",
+    "profile": "1.0",
+    "description": "A new Evidence descriptor retains a stale digest after its resource bytes change.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/changed.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Changed resource with stale digest.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/changed.txt",
+            "fixture": "resources/changed.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-DIGEST"]
+    }
+  },
+  {
+    "id": "evidence-edited",
+    "profile": "1.0",
+    "description": "A merged Evidence Markdown blob changes by one byte.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence!\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "evidence-renamed",
+    "profile": "1.0",
+    "description": "A merged Evidence concept moves to another path while retaining its UID and exact bytes.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/renamed.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-IMMUTABLE"]
+    }
+  },
+  {
+    "id": "evidence-resource-bytes-changed",
+    "profile": "1.0",
+    "description": "Bytes at a Git-base Evidence resource path change while the immutable descriptor remains unchanged.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/changed.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-DIGEST", "EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-deleted",
+    "profile": "1.0",
+    "description": "A resource referenced by Git-base Evidence is deleted while the descriptor remains unchanged.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-escape",
+    "profile": "1.0",
+    "description": "A new Evidence resource is outside every configured evidence root.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/private/secret.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Outside-root evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/private/secret.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-missing",
+    "profile": "1.0",
+    "description": "A new Evidence resource path has no stored file.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-oversized",
+    "profile": "1.0",
+    "description": "A new Evidence resource exceeds the configured byte limit by one byte.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 24,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-root-itself",
+    "profile": "1.0",
+    "description": "An Evidence resource names the configured root itself rather than a file beneath it.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-resource-symlink",
+    "profile": "1.0",
+    "description": "A new Evidence resource resolves through a symlink rather than a tracked regular file.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt",
+            "kind": "symlink"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-RESOURCE"]
+    }
+  },
+  {
+    "id": "evidence-support-missing",
+    "profile": "1.0",
+    "description": "A new Evidence support path does not resolve to a concept.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e",
+                "supports": ["/projects/demo/tasks/missing.md"]
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-SUPPORT"]
+    }
+  },
+  {
+    "id": "immutable-project-target-renamed",
+    "profile": "1.0",
+    "description": "A Project referenced by a merged Activity moves while retaining its UID.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/renamed.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          },
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "patch": {
+              "title": "Replacement path occupant",
+              "bookie": {
+                "uid": "PRJ-01ARZ3NDEKTSV4RRFFQ69G5FB8"
+              }
+            },
+            "body": "Different Project at the pinned path.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["PROJECT-TARGET"]
+    }
+  },
+  {
+    "id": "immutable-relation-target-renamed",
+    "profile": "1.0",
+    "description": "A relation target stored by merged Activity keeps its path but now resolves to another UID.",
+    "facts": {
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      },
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "relates_to",
+                    "target": "/projects/demo/tasks/source.md"
+                  }
+                ]
+              }
+            },
+            "body": "Checkpoint with a pinned relation.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "relates_to",
+                    "target": "/projects/demo/activities/checkpoint.md"
+                  }
+                ]
+              }
+            },
+            "body": "Original relation target.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/checkpoint.md",
+            "fixture": "activity",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "relates_to",
+                    "target": "/projects/demo/tasks/source.md"
+                  }
+                ]
+              }
+            },
+            "body": "Checkpoint with a pinned relation.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/renamed.md",
+            "fixture": "task",
+            "body": "Original relation target.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Replacement relation target",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FB9",
+                "relations": [
+                  {
+                    "kind": "relates_to",
+                    "target": "/projects/demo/activities/checkpoint.md"
+                  }
+                ]
+              }
+            },
+            "body": "Different Task at the pinned relation path.\n"
+          }
+        ],
+        "resources": []
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-TARGET"]
+    }
+  },
+  {
+    "id": "immutable-support-target-renamed",
+    "profile": "1.0",
+    "description": "A concept supported by merged Evidence moves while retaining its UID.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e",
+                "supports": ["/projects/demo/tasks/source.md"]
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/renamed.md",
+            "fixture": "task",
+            "body": "/projects/demo/tasks/renamed.md\n"
+          },
+          {
+            "path": "/projects/demo/evidence/source.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e",
+                "supports": ["/projects/demo/tasks/source.md"]
+              }
+            },
+            "body": "Original evidence.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Replacement support target",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FB9"
+              }
+            },
+            "body": "Different Task at the pinned support path.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["EVIDENCE-SUPPORT"]
+    }
+  },
+  {
+    "id": "project-target-wrong-type",
+    "profile": "1.0",
+    "description": "A Task project path resolves to a Document rather than a Project.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/not-project.md",
+            "fixture": "document",
+            "body": "Not a project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "project": "/projects/demo/not-project.md"
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["PROJECT-TARGET"]
+    }
+  },
+  {
+    "id": "relation-inverse-missing",
+    "profile": "1.0",
+    "description": "A blocks target has no blocked_by relation to the source.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "blocks",
+                    "target": "/projects/demo/tasks/target.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Target task",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX",
+                "relations": []
+              }
+            },
+            "body": "/projects/demo/tasks/target.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-INVERSE"]
+    }
+  },
+  {
+    "id": "relation-inverse-wrong-kind",
+    "profile": "1.0",
+    "description": "A blocks target points back with relates_to instead of blocked_by.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "blocks",
+                    "target": "/projects/demo/tasks/target.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Target task",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX",
+                "relations": [
+                  {
+                    "kind": "relates_to",
+                    "target": "/projects/demo/tasks/source.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/target.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-INVERSE"]
+    }
+  },
+  {
+    "id": "relation-supersession-wrong-type",
+    "profile": "1.0",
+    "description": "A Task attempts to supersede another Task, which is not an allowed correction type.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/tasks/target.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Target task",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+              }
+            },
+            "body": "/projects/demo/tasks/target.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-TARGET"]
+    }
+  },
+  {
+    "id": "relation-target-missing",
+    "profile": "1.0",
+    "description": "A normalized relation target does not exist in the proposed tree.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "depends_on",
+                    "target": "/projects/demo/tasks/missing.md"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-TARGET"]
+    }
+  },
+  {
+    "id": "relation-target-uid-mismatch",
+    "profile": "1.0",
+    "description": "A cached target UID differs from the UID at its existing path.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "depends_on",
+                    "target": "/projects/demo/tasks/target.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW"
+                  }
+                ]
+              }
+            },
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Target task",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+              }
+            },
+            "body": "/projects/demo/tasks/target.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["RELATION-TARGET"]
+    }
+  },
+  {
+    "id": "type-not-allowed",
+    "profile": "1.0",
+    "description": "A schema-valid Project is absent from the manifest type allow-list.",
+    "facts": {
+      "policy": {
+        "allowed_concept_types": ["Task"],
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25
+      },
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Project omitted from the allow-list.\n"
+          }
+        ],
+        "resources": []
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["TYPE-ALLOWED"]
+    }
+  },
+  {
+    "id": "uid-duplicate",
+    "profile": "1.0",
+    "description": "Two proposed Task paths carry the same Bookie UID.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "body": "/projects/demo/tasks/source.md\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "body": "/projects/demo/tasks/target.md\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": false,
+      "rules": ["UID-UNIQUE"]
+    }
+  }
+]

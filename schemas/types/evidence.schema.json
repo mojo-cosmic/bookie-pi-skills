@@ -13,7 +13,9 @@
         "type": {
           "const": "Evidence"
         },
-        "resource": true,
+        "resource": {
+          "$ref": "urn:bookie:schema:common:1.0#/$defs/bundleFilePath"
+        },
         "bookie": {
           "type": "object",
           "required": [
@@ -24,6 +26,10 @@
             "supports"
           ],
           "properties": {
+            "uid": {
+              "type": "string",
+              "pattern": "^EVD-"
+            },
             "project": true,
             "captured_at": true,
             "sha256": true,

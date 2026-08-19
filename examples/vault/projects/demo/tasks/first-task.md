@@ -17,6 +17,10 @@ bookie:
   relations:
     - kind: part_of
       target: /projects/demo/project.md
+      target_uid: PRJ-01ARZ3NDEKTSV4RRFFQ69G5FAV
+    - kind: relates_to
+      target: /projects/demo/activities/first-checkpoint.md
+      target_uid: ACT-01ARZ3NDEKTSV4RRFFQ69G5FAX
   external_ids: {}
 ---
 

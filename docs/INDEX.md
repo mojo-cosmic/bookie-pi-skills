@@ -23,6 +23,10 @@ This page is the stable entry point for product and engineering context.
 - [Open questions](planning/open-questions.md) — unresolved decisions with owners and deadlines.
 - [Toolchain baseline](planning/toolchain.md) — supported versions, compatibility holds, and update procedure.
 
+## Reference
+
+- [Bookie profile 1.0](reference/profile-v1.md) — complete manifest, concept, relation, validation, and migration contract.
+
 ## Executable specifications
 
 1. [Canonical ledger](specs/001-canonical-ledger.md)
@@ -40,6 +44,14 @@ This page is the stable entry point for product and engineering context.
 - [Initial type schemas](../schemas/types/)
 - [Concept schema fixtures](../fixtures/concepts/1.0/)
 - [Concept schema tests](../test/concept-schema.test.mjs)
+- [Cross-file policy fixtures](../fixtures/policy/1.0/)
+- [Cross-file policy contract tests](../test/policy-contract.test.mjs)
+- [Complete valid vault fixture](../fixtures/valid-vault/)
+- [Invalid vault fixtures](../fixtures/invalid-vaults/)
+- [Vault fixture tests](../test/vault-fixtures.test.mjs)
+- [YAML decision evidence](../test/yaml-roundtrip-decision.test.mjs)
+- [Core concept loader](../packages/core/src/concept-loader.ts) and [tests](../packages/core/test/concept-loader.test.mjs)
+- [Core vault validator](../packages/core/src/vault-validator.ts) and [tests](../packages/core/test/vault-validator.test.mjs)
 - [Example vault](../examples/vault/)
 - [Repository contract tests](../test/repository.test.mjs)
 
