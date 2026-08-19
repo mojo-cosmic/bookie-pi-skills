@@ -82,6 +82,16 @@ test("local Markdown links resolve", () => {
   );
   const broken = [];
   const linkPattern = /(?<!!)\[[^\]]*\]\(([^)]+)\)/g;
+  const invalidVaultRoot = resolve(root, "fixtures/invalid-vaults");
+  const vaultRoots = [
+    resolve(root, "examples/vault"),
+    resolve(root, "fixtures/valid-vault"),
+    ...(existsSync(invalidVaultRoot)
+      ? readdirSync(invalidVaultRoot).map((name) =>
+          resolve(invalidVaultRoot, name),
+        )
+      : []),
+  ];
 
   for (const file of markdownFiles) {
     const text = readFileSync(file, "utf8");
@@ -95,14 +105,11 @@ test("local Markdown links resolve", () => {
         continue;
 
       const pathOnly = decodeURIComponent(destination.split("#", 1)[0]);
-      const vaultRoot = resolve(root, "examples/vault");
+      const bundleRoot = vaultRoots.find((vaultRoot) =>
+        file.startsWith(`${vaultRoot}/`),
+      );
       const target = pathOnly.startsWith("/")
-        ? normalize(
-            resolve(
-              file.startsWith(vaultRoot) ? vaultRoot : root,
-              `.${pathOnly}`,
-            ),
-          )
+        ? normalize(resolve(bundleRoot ?? root, `.${pathOnly}`))
         : normalize(resolve(dirname(file), pathOnly));
       if (!existsSync(target)) {
         broken.push(`${repoPath(file)} -> ${destination}`);
@@ -367,10 +374,28 @@ test("backlog dependencies, states, and completion evidence stay coherent", () =
     "Backlog",
   );
   assertSequential(openQuestionIds, "Open-question");
-  assert.ok(
-    rows.some((row) => row.status === "Ready"),
-    "Backlog has no Ready work",
-  );
+  const readyRows = rows.filter((row) => row.status === "Ready");
+  if (readyRows.length === 0) {
+    const nextBlocked = rows.find(
+      (row) => !["Done", "Deferred"].includes(row.status),
+    );
+    assert.ok(nextBlocked, "Backlog has no Ready or Blocked work");
+    assert.equal(
+      nextBlocked.status,
+      "Blocked",
+      `${nextBlocked.id} must explain why no work is Ready`,
+    );
+    const questionDependencies =
+      nextBlocked.dependencies.match(/OQ-\d{3}/g) ?? [];
+    assert.ok(
+      questionDependencies.length > 0,
+      `No Ready work and ${nextBlocked.id} has no decision gate`,
+    );
+    assert.ok(
+      backlog.includes("No implementation item is Ready"),
+      "Backlog must disclose an empty Ready queue",
+    );
+  }
 
   for (const [index, row] of rows.entries()) {
     assert.ok(

@@ -2,7 +2,7 @@
 
 Bookie is a local-first, Git-native project ledger for people and agents. It keeps tasks, documents, research, decisions, activity checkpoints, files, and evidence in an [Open Knowledge Format (OKF) v0.2](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)-compatible bundle and exposes disciplined workflows through a Pi extension.
 
-> **Status:** architecture and repository bootstrap accepted; product implementation begins with [SPEC-001](docs/specs/001-canonical-ledger.md) and the next Ready item in the ordered [backlog](docs/planning/backlog.md).
+> **Status:** the canonical profile in [SPEC-001](docs/specs/001-canonical-ledger.md) is implemented. [ADR-0005](docs/architecture/decisions/0005-yaml-document-ast.md) resolved lossless YAML loading, and SPEC-002 core work is in progress; see the ordered [backlog](docs/planning/backlog.md).
 
 ## Design commitments
 
@@ -30,7 +30,7 @@ npm test
 npm run check
 ```
 
-These checks currently validate the planning contract, internal links, specification completeness, and the example OKF bundle. Product tests will be added with each implementation increment.
+These checks validate the planning contract, schemas, policy fixtures, internal links, specification completeness, and complete valid/invalid OKF vault fixtures. Runtime product tests are added with each implementation increment.
 
 ## Intended repository shape
 

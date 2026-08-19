@@ -16,6 +16,10 @@
           "type": "object",
           "required": ["project", "created_at", "state"],
           "properties": {
+            "uid": {
+              "type": "string",
+              "pattern": "^DSN-"
+            },
             "state": {
               "enum": ["proposed", "accepted", "rejected", "superseded"]
             },

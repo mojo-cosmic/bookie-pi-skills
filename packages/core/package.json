@@ -9,9 +9,19 @@
       "import": "./dist/index.js"
     }
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc -b",
+    "build": "tsc -b && node scripts/copy-schemas.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
     "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "mdast-util-from-markdown": "^2.0.3",
+    "yaml": "^2.9.0"
   }
 }

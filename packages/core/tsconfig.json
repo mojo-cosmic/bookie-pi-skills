@@ -3,6 +3,7 @@
     "composite": true,
     "declaration": true,
     "declarationMap": true,
+    "esModuleInterop": true,
     "exactOptionalPropertyTypes": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
@@ -13,6 +14,7 @@
     "sourceMap": true,
     "strict": true,
     "target": "ES2023",
+    "types": ["node"],
     "verbatimModuleSyntax": true
   },
   "include": ["src/**/*.ts"]

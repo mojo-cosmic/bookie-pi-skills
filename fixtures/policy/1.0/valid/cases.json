@@ -1,0 +1,472 @@
+[
+  {
+    "id": "decision-supersession",
+    "profile": "1.0",
+    "description": "An accepted Decision replaces one deprecated Decision in the same project with reciprocal links.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "status": "deprecated",
+              "bookie": {
+                "state": "superseded",
+                "relations": [
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2"
+                  }
+                ]
+              }
+            },
+            "body": "Original decision; superseded.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  }
+                ]
+              }
+            },
+            "body": "Replacement decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": true,
+      "rules": []
+    }
+  },
+  {
+    "id": "decision-supersession-consolidated",
+    "profile": "1.0",
+    "description": "One accepted Decision reciprocally supersedes two deprecated predecessors in the same project.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "body": "Original decision.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/second-old.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Second old decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB6"
+              }
+            },
+            "body": "Second original decision.\n"
+          }
+        ],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/old.md",
+            "fixture": "decision",
+            "patch": {
+              "status": "deprecated",
+              "bookie": {
+                "state": "superseded",
+                "relations": [
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2"
+                  }
+                ]
+              }
+            },
+            "body": "Original decision; superseded.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/new.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Replacement decision",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FAZ"
+                  },
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/decisions/second-old.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB6"
+                  }
+                ]
+              }
+            },
+            "body": "Replacement decision.\n"
+          },
+          {
+            "path": "/projects/demo/decisions/second-old.md",
+            "fixture": "decision",
+            "patch": {
+              "title": "Second old decision",
+              "status": "deprecated",
+              "bookie": {
+                "uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB6",
+                "state": "superseded",
+                "relations": [
+                  {
+                    "kind": "superseded_by",
+                    "target": "/projects/demo/decisions/new.md",
+                    "target_uid": "DSN-01ARZ3NDEKTSV4RRFFQ69G5FB2"
+                  }
+                ]
+              }
+            },
+            "body": "Second original decision; superseded.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": true,
+      "rules": []
+    }
+  },
+  {
+    "id": "evidence-exact-bytes",
+    "profile": "1.0",
+    "description": "A new Evidence record hashes the exact stored UTF-8 bytes.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/exact.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Exact bytes.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "expected_digests": {
+        "exact.txt": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e",
+        "crlf.txt": "ab89d3e34f555d082c035b00af1a131a168fc729c3b2b97c297862f795aa1700",
+        "binary.bin": "ba97f000c06284911e574645aa29b7b6890957382f1f7708309d443a380c40a4"
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": true,
+      "rules": []
+    }
+  },
+  {
+    "id": "immutable-replacements",
+    "profile": "1.0",
+    "description": "Merged Activity and Evidence bytes remain unchanged while new same-type corrections point to them.",
+    "facts": {
+      "base": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/old.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/old.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          }
+        ]
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/activities/old.md",
+            "fixture": "activity",
+            "body": "Original checkpoint.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/old.md",
+            "fixture": "evidence",
+            "patch": {
+              "resource": "/references/files/exact.txt",
+              "bookie": {
+                "sha256": "a5f2703919bf3aa8ad05625ac9c8a9be4b1e8277af142eb705f898ae74cacf1e"
+              }
+            },
+            "body": "Original evidence.\n"
+          },
+          {
+            "path": "/projects/demo/activities/correction.md",
+            "fixture": "activity",
+            "patch": {
+              "title": "Checkpoint correction",
+              "bookie": {
+                "uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB3",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/activities/old.md",
+                    "target_uid": "ACT-01ARZ3NDEKTSV4RRFFQ69G5FB0"
+                  }
+                ]
+              }
+            },
+            "body": "Checkpoint correction.\n"
+          },
+          {
+            "path": "/projects/demo/evidence/correction.md",
+            "fixture": "evidence",
+            "patch": {
+              "title": "Evidence correction",
+              "resource": "/references/files/changed.txt",
+              "bookie": {
+                "uid": "EVD-01ARZ3NDEKTSV4RRFFQ69G5FB4",
+                "sha256": "d77f417a46f6f690e273cd82481e1ca6729f28c1f142c7391eb6ffe654aa6255",
+                "relations": [
+                  {
+                    "kind": "supersedes",
+                    "target": "/projects/demo/evidence/old.md",
+                    "target_uid": "EVD-01ARZ3NDEKTSV4RRFFQ69G5FB1"
+                  }
+                ]
+              }
+            },
+            "body": "Evidence correction.\n"
+          }
+        ],
+        "resources": [
+          {
+            "path": "/references/files/exact.txt",
+            "fixture": "resources/exact.txt"
+          },
+          {
+            "path": "/references/files/changed.txt",
+            "fixture": "resources/changed.txt"
+          }
+        ]
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": true,
+      "rules": []
+    }
+  },
+  {
+    "id": "relation-inverses",
+    "profile": "1.0",
+    "description": "A blocks relation has exactly one blocked_by inverse with matching cached UIDs.",
+    "facts": {
+      "base": {
+        "concepts": [],
+        "resources": []
+      },
+      "proposed": {
+        "concepts": [
+          {
+            "path": "/projects/demo/project.md",
+            "fixture": "project",
+            "body": "Demo project.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/source.md",
+            "fixture": "task",
+            "patch": {
+              "bookie": {
+                "relations": [
+                  {
+                    "kind": "blocks",
+                    "target": "/projects/demo/tasks/target.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX"
+                  }
+                ]
+              }
+            },
+            "body": "Source task.\n"
+          },
+          {
+            "path": "/projects/demo/tasks/target.md",
+            "fixture": "task",
+            "patch": {
+              "title": "Target task",
+              "bookie": {
+                "uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAX",
+                "relations": [
+                  {
+                    "kind": "blocked_by",
+                    "target": "/projects/demo/tasks/source.md",
+                    "target_uid": "TSK-01ARZ3NDEKTSV4RRFFQ69G5FAW"
+                  }
+                ]
+              }
+            },
+            "body": "Target task.\n"
+          }
+        ],
+        "resources": []
+      },
+      "policy": {
+        "evidence_roots": ["references/files"],
+        "attachment_max_bytes": 25,
+        "allowed_concept_types": [
+          "Project",
+          "Task",
+          "Document",
+          "Research",
+          "Decision",
+          "Activity",
+          "Evidence",
+          "Person"
+        ]
+      }
+    },
+    "expected": {
+      "valid": true,
+      "rules": []
+    }
+  }
+]

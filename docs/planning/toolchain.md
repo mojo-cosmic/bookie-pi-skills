@@ -22,7 +22,9 @@ This is the supported repository-development baseline, not a promise that every 
 | TypeScript | 6.0 | Latest line accepted by the current `typescript-eslint` peer range. |
 | `typescript-eslint` | 8 | Current major; supports ESLint 10 but requires TypeScript below 6.1. |
 | `@types/node` | 24 | Intentionally matches the Node 24 runtime rather than the registry's Node 26 types. |
-| Ajv / `ajv-formats` | 8 / 3 | Direct test dependencies for strict JSON Schema 2020-12 meta-validation, decoded fixture validation, and asserted standard URI formats. |
+| Ajv / `ajv-formats` | 8 / 3 | Strict JSON Schema 2020-12 validation and URI formats in both repository conformance tests and the packaged core vault validator. |
+| `yaml` | 2 | Generic YAML 1.2 fixture reader and the ADR-0005 core Document parser. Core retains raw source for exact no-op serialization and keeps parser AST types private. |
+| `mdast-util-from-markdown` | 2 | Inert CommonMark AST parsing for local link/image/reference validation without rendering, raw-HTML traversal, or network access. |
 
 TypeScript 7 and Node 26 types are intentionally not selected: they are not compatible with the current parser/runtime baseline. They are upgrade candidates, not stale patch dependencies.
 

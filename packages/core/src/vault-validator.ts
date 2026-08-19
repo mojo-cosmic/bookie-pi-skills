@@ -1,0 +1,686 @@
+import { lstat, readFile, realpath, stat } from "node:fs/promises";
+import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { Ajv2020 } from "ajv/dist/2020.js";
+import * as formatsModule from "ajv-formats";
+
+import { throwIfAborted } from "./vault-cancellation.js";
+import {
+  DEFAULT_MAX_CONCEPT_BYTES,
+  DEFAULT_MAX_YAML_DEPTH,
+  loadConcept,
+} from "./concept-loader.js";
+import {
+  createDiagnostic,
+  DiagnosticCollector,
+  mapConceptDiagnostic,
+  sanitizeFile,
+} from "./vault-diagnostics.js";
+import type { VaultDiagnostic } from "./vault-diagnostics.js";
+import {
+  bundlePath,
+  createPathTracker,
+  enumerateVault,
+  hashSafeBoundedFile,
+  readSafeBoundedFile,
+  verifyTrackedPaths,
+} from "./vault-filesystem.js";
+import type { PathTracker } from "./vault-filesystem.js";
+import { validateMarkdownLinks } from "./vault-markdown.js";
+import type {
+  BookieCandidate,
+  BookieData,
+  BookieRecord,
+  Manifest,
+  ManifestState,
+  SchemaError,
+  SchemaValidator,
+  SchemaValidators,
+  ValidationLimits,
+  VaultEntries,
+} from "./vault-model.js";
+import {
+  validateCandidateIdentity,
+  validateCurrentTree,
+} from "./vault-policy.js";
+
+export const DEFAULT_MAX_MANIFEST_BYTES = 65_536;
+export const DEFAULT_MAX_VAULT_ENTRIES = 100_000;
+export const DEFAULT_MAX_VAULT_CONCEPTS = 50_000;
+export const DEFAULT_MAX_TOTAL_CONCEPT_BYTES = 536_870_912;
+export const DEFAULT_MAX_TOTAL_RESOURCE_BYTES = 2_147_483_648;
+export const DEFAULT_MAX_VAULT_DIAGNOSTICS = 1_000;
+
+export interface ValidateVaultOptions {
+  readonly maxManifestBytes?: number;
+  readonly maxConceptBytes?: number;
+  readonly maxYamlDepth?: number;
+  readonly maxEntries?: number;
+  readonly maxConcepts?: number;
+  readonly maxTotalConceptBytes?: number;
+  readonly maxTotalResourceBytes?: number;
+  readonly maxDiagnostics?: number;
+  readonly signal?: AbortSignal;
+}
+
+export interface ValidateVaultResult {
+  readonly valid: boolean;
+  readonly root: string;
+  readonly diagnostics: readonly VaultDiagnostic[];
+  readonly complete: boolean;
+  readonly diagnosticsTruncated: boolean;
+}
+
+export type {
+  VaultDiagnostic,
+  VaultDiagnosticCode,
+} from "./vault-diagnostics.js";
+
+const profileTypes = [
+  "Project",
+  "Task",
+  "Document",
+  "Research",
+  "Decision",
+  "Activity",
+  "Evidence",
+  "Person",
+] as const;
+const schemaRoot = fileURLToPath(new URL("./schemas/", import.meta.url));
+let validatorsPromise: Promise<SchemaValidators> | undefined;
+
+function positiveLimit(
+  name: string,
+  value: number | undefined,
+  maximum: number,
+): number {
+  if (value === undefined) return maximum;
+  if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
+    throw new TypeError(
+      `${name} must be a positive integer no greater than ${maximum}`,
+    );
+  }
+  return value;
+}
+
+function validationLimits(options: ValidateVaultOptions): ValidationLimits {
+  return {
+    maxManifestBytes: positiveLimit(
+      "maxManifestBytes",
+      options.maxManifestBytes,
+      DEFAULT_MAX_MANIFEST_BYTES,
+    ),
+    maxConceptBytes: positiveLimit(
+      "maxConceptBytes",
+      options.maxConceptBytes,
+      DEFAULT_MAX_CONCEPT_BYTES,
+    ),
+    maxYamlDepth: positiveLimit(
+      "maxYamlDepth",
+      options.maxYamlDepth,
+      DEFAULT_MAX_YAML_DEPTH,
+    ),
+    maxEntries: positiveLimit(
+      "maxEntries",
+      options.maxEntries,
+      DEFAULT_MAX_VAULT_ENTRIES,
+    ),
+    maxConcepts: positiveLimit(
+      "maxConcepts",
+      options.maxConcepts,
+      DEFAULT_MAX_VAULT_CONCEPTS,
+    ),
+    maxTotalConceptBytes: positiveLimit(
+      "maxTotalConceptBytes",
+      options.maxTotalConceptBytes,
+      DEFAULT_MAX_TOTAL_CONCEPT_BYTES,
+    ),
+    maxTotalResourceBytes: positiveLimit(
+      "maxTotalResourceBytes",
+      options.maxTotalResourceBytes,
+      DEFAULT_MAX_TOTAL_RESOURCE_BYTES,
+    ),
+    maxDiagnostics: positiveLimit(
+      "maxDiagnostics",
+      options.maxDiagnostics,
+      DEFAULT_MAX_VAULT_DIAGNOSTICS,
+    ),
+  };
+}
+
+function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+async function loadSchemaValidators(): Promise<SchemaValidators> {
+  const readJson = async (path: string): Promise<Record<string, unknown>> =>
+    JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+  const ajv = new Ajv2020({ allErrors: true, strict: true });
+  const addFormats = formatsModule.default as unknown as (
+    instance: Ajv2020,
+  ) => unknown;
+  addFormats(ajv);
+
+  const common = await readJson(
+    resolve(schemaRoot, "bookie-common.schema.json"),
+  );
+  const manifestSchema = await readJson(
+    resolve(schemaRoot, "profile/1.0/bookie-config.schema.json"),
+  );
+  ajv.addSchema(common);
+
+  const byType = new Map<string, SchemaValidator>();
+  for (const type of profileTypes) {
+    byType.set(
+      type,
+      ajv.compile(
+        await readJson(
+          resolve(schemaRoot, `types/${type.toLowerCase()}.schema.json`),
+        ),
+      ),
+    );
+  }
+
+  const definitions = common.$defs as
+    Record<string, Record<string, unknown>> | undefined;
+  const conceptPath = definitions?.conceptPath?.pattern;
+  if (typeof conceptPath !== "string") {
+    throw new Error("Canonical conceptPath schema is unavailable");
+  }
+
+  return {
+    manifest: ajv.compile(manifestSchema),
+    byType,
+    conceptPathPattern: new RegExp(conceptPath, "u"),
+  };
+}
+
+function schemaValidators(): Promise<SchemaValidators> {
+  validatorsPromise ??= loadSchemaValidators();
+  return validatorsPromise;
+}
+
+function addSchemaDiagnostics(
+  collector: DiagnosticCollector,
+  code: "MANIFEST-SCHEMA" | "CONCEPT-SCHEMA",
+  file: string,
+  errors: readonly SchemaError[] | null | undefined,
+): void {
+  if (errors === null || errors === undefined || errors.length === 0) {
+    collector.add(createDiagnostic(code, file));
+    return;
+  }
+  for (const error of errors) {
+    collector.add(
+      createDiagnostic(code, file, {
+        instancePath: error.instancePath,
+        keyword: error.keyword,
+      }),
+    );
+  }
+}
+
+function wrapManifest(bytes: Uint8Array): Uint8Array {
+  const opening = new TextEncoder().encode("---\n");
+  const needsNewline = bytes.length > 0 && bytes[bytes.length - 1] !== 0x0a;
+  const closing = new TextEncoder().encode(needsNewline ? "\n---\n" : "---\n");
+  const wrapped = new Uint8Array(
+    opening.length + bytes.length + closing.length,
+  );
+  wrapped.set(opening, 0);
+  wrapped.set(bytes, opening.length);
+  wrapped.set(closing, opening.length + bytes.length);
+  return wrapped;
+}
+
+function excludedSensitivityClasses(
+  manifest: Readonly<Record<string, unknown>>,
+): readonly string[] {
+  const policy = isObject(manifest.policy) ? manifest.policy : undefined;
+  const sensitivity =
+    policy !== undefined && isObject(policy.sensitivity)
+      ? policy.sensitivity
+      : undefined;
+  const excluded = sensitivity?.excluded_classes;
+  return Array.isArray(excluded)
+    ? [
+        ...new Set(
+          excluded.filter(
+            (value): value is string => typeof value === "string",
+          ),
+        ),
+      ].sort()
+    : [];
+}
+
+function hasErrorCode(error: unknown, code: string): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === code
+  );
+}
+
+async function readManifest(
+  root: string,
+  limits: ValidationLimits,
+  validators: SchemaValidators,
+  collector: DiagnosticCollector,
+  signal: AbortSignal | undefined,
+  tracker: PathTracker,
+): Promise<ManifestState> {
+  const path = resolve(root, "bookie.yaml");
+  try {
+    const metadata = await lstat(path);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) {
+      collector.add(createDiagnostic("MANIFEST-MISSING", "/bookie.yaml"));
+      collector.markIncomplete();
+      return { excludedSensitivityClasses: [] };
+    }
+  } catch (error) {
+    collector.add(
+      createDiagnostic(
+        hasErrorCode(error, "ENOENT") ? "MANIFEST-MISSING" : "VAULT-IO",
+        "/bookie.yaml",
+      ),
+    );
+    collector.markIncomplete();
+    return { excludedSensitivityClasses: [] };
+  }
+
+  const read = await readSafeBoundedFile(
+    root,
+    "bookie.yaml",
+    limits.maxManifestBytes,
+    signal,
+    tracker,
+  );
+  if (!read.ok) {
+    collector.add(
+      createDiagnostic(
+        read.reason === "size" ? "MANIFEST-SIZE" : "VAULT-IO",
+        "/bookie.yaml",
+      ),
+    );
+    collector.markIncomplete();
+    return { excludedSensitivityClasses: [] };
+  }
+
+  const loaded = loadConcept(wrapManifest(read.bytes), {
+    file: "/bookie.yaml",
+    maxDepth: limits.maxYamlDepth,
+  });
+  if (!loaded.ok) {
+    collector.add(createDiagnostic("MANIFEST-SYNTAX", "/bookie.yaml"));
+    collector.markIncomplete();
+    return { excludedSensitivityClasses: [] };
+  }
+
+  const decoded = loaded.concept.frontmatter;
+  const redaction = excludedSensitivityClasses(decoded);
+  if (!validators.manifest(decoded)) {
+    addSchemaDiagnostics(
+      collector,
+      "MANIFEST-SCHEMA",
+      "/bookie.yaml",
+      validators.manifest.errors,
+    );
+    collector.markIncomplete();
+    return { excludedSensitivityClasses: redaction };
+  }
+  return {
+    manifest: decoded as unknown as Manifest,
+    excludedSensitivityClasses: redaction,
+  };
+}
+
+function isReservedMarkdown(relativePath: string): boolean {
+  const name = relativePath.split("/").at(-1);
+  return name === "index.md" || name === "log.md";
+}
+
+function displayFileFor(
+  path: string,
+  frontmatter: Readonly<Record<string, unknown>>,
+  excludedClasses: readonly string[],
+): string {
+  const bookie = isObject(frontmatter.bookie) ? frontmatter.bookie : undefined;
+  const sensitivity = bookie?.sensitivity;
+  return typeof sensitivity === "string" &&
+    excludedClasses.includes(sensitivity)
+    ? "<excluded>"
+    : path;
+}
+
+async function validateEvidenceResources(
+  records: readonly BookieRecord[],
+  manifest: Manifest | undefined,
+  root: string,
+  entries: VaultEntries,
+  limits: ValidationLimits,
+  collector: DiagnosticCollector,
+  signal: AbortSignal | undefined,
+  tracker: PathTracker,
+): Promise<void> {
+  if (manifest === undefined) return;
+  const cache = new Map<
+    string,
+    { readonly ok: true; readonly digest: string } | { readonly ok: false }
+  >();
+  let totalResourceBytes = 0;
+
+  for (const evidence of records.filter(
+    (record) => record.type === "Evidence",
+  )) {
+    throwIfAborted(signal);
+    const resource = evidence.frontmatter.resource;
+    if (typeof resource !== "string" || !resource.startsWith("/")) continue;
+    const relativeResource = resource.slice(1);
+    const beneathConfiguredRoot = manifest.policy.evidence_roots.some(
+      (evidenceRoot) => relativeResource.startsWith(`${evidenceRoot}/`),
+    );
+    if (!beneathConfiguredRoot || !entries.regularFiles.has(relativeResource)) {
+      collector.add(
+        createDiagnostic("EVIDENCE-RESOURCE", evidence.displayFile),
+      );
+      continue;
+    }
+
+    let cached = cache.get(relativeResource);
+    if (cached === undefined) {
+      const remaining = limits.maxTotalResourceBytes - totalResourceBytes;
+      if (remaining <= 0) {
+        collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+        collector.markIncomplete();
+        cached = { ok: false };
+      } else {
+        const maximum = Math.min(
+          manifest.policy.attachment_max_bytes,
+          remaining,
+        );
+        const hashed = await hashSafeBoundedFile(
+          root,
+          relativeResource,
+          maximum,
+          signal,
+          tracker,
+        );
+        if (!hashed.ok) {
+          if (
+            hashed.reason === "size" &&
+            (hashed.size ?? 0) <= manifest.policy.attachment_max_bytes
+          ) {
+            collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+            collector.markIncomplete();
+          }
+          cached = { ok: false };
+        } else {
+          totalResourceBytes += hashed.size;
+          cached = { ok: true, digest: hashed.digest };
+        }
+      }
+      cache.set(relativeResource, cached);
+    }
+
+    if (!cached.ok) {
+      collector.add(
+        createDiagnostic("EVIDENCE-RESOURCE", evidence.displayFile),
+      );
+    } else if (cached.digest !== evidence.bookie.sha256) {
+      collector.add(createDiagnostic("EVIDENCE-DIGEST", evidence.displayFile));
+    }
+  }
+}
+
+export async function validateVault(
+  rootPath: string | URL,
+  options: ValidateVaultOptions = {},
+): Promise<ValidateVaultResult> {
+  const limits = validationLimits(options);
+  const collector = new DiagnosticCollector(limits.maxDiagnostics);
+  const tracker = createPathTracker();
+  throwIfAborted(options.signal);
+  const suppliedRoot =
+    rootPath instanceof URL ? fileURLToPath(rootPath) : rootPath;
+  const unresolvedRoot = resolve(suppliedRoot);
+  let root: string;
+  try {
+    root = await realpath(unresolvedRoot);
+    const metadata = await stat(root);
+    if (!metadata.isDirectory()) throw new Error("not a directory");
+  } catch {
+    collector.add(createDiagnostic("VAULT-ROOT", "/"));
+    collector.markIncomplete();
+    const diagnostics = collector.finish();
+    return {
+      valid: false,
+      root: unresolvedRoot,
+      diagnostics,
+      complete: collector.complete,
+      diagnosticsTruncated: collector.diagnosticsTruncated,
+    };
+  }
+
+  throwIfAborted(options.signal);
+  const validators = await schemaValidators();
+  throwIfAborted(options.signal);
+  const manifestState = await readManifest(
+    root,
+    limits,
+    validators,
+    collector,
+    options.signal,
+    tracker,
+  );
+  throwIfAborted(options.signal);
+  const manifest = manifestState.manifest;
+  const entries = await enumerateVault(
+    root,
+    manifest?.policy.exclude ?? [],
+    limits,
+    collector,
+    options.signal,
+    tracker,
+  );
+
+  const candidates: BookieCandidate[] = [];
+  const records: BookieRecord[] = [];
+  const redactedEntryPaths = new Set<string>();
+  let conceptCount = 0;
+  let totalConceptBytes = 0;
+
+  for (const relativePath of entries.markdownFiles) {
+    throwIfAborted(options.signal);
+    const hostPath = resolve(root, relativePath);
+    const file = bundlePath(relativePath);
+    const read = await readSafeBoundedFile(
+      root,
+      relativePath,
+      limits.maxConceptBytes,
+      options.signal,
+      tracker,
+    );
+    if (!read.ok) {
+      collector.add(
+        read.reason === "size"
+          ? mapConceptDiagnostic(
+              {
+                code: "CONCEPT-SIZE",
+                severity: "error",
+                file,
+                message: "Concept exceeds the configured byte limit.",
+                remediation:
+                  "Reduce the concept size below the configured limit.",
+              },
+              file,
+            )
+          : createDiagnostic("VAULT-IO", file),
+      );
+      collector.markIncomplete();
+      continue;
+    }
+
+    totalConceptBytes += read.bytes.byteLength;
+    if (totalConceptBytes > limits.maxTotalConceptBytes) {
+      collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+      collector.markIncomplete();
+      break;
+    }
+
+    if (isReservedMarkdown(relativePath)) {
+      let body: string;
+      try {
+        body = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
+      } catch {
+        collector.add({
+          code: "CONCEPT-UTF8",
+          severity: "error",
+          file: sanitizeFile(file),
+          message: "Concept is not valid UTF-8.",
+          remediation: "Save the complete Markdown file as valid UTF-8.",
+        });
+        continue;
+      }
+      validateMarkdownLinks(body, hostPath, file, root, entries, collector);
+      continue;
+    }
+
+    conceptCount += 1;
+    if (conceptCount > limits.maxConcepts) {
+      collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+      collector.markIncomplete();
+      break;
+    }
+
+    const loaded = loadConcept(read.bytes, {
+      file,
+      maxBytes: limits.maxConceptBytes,
+      maxDepth: limits.maxYamlDepth,
+    });
+    if (!loaded.ok) {
+      for (const diagnostic of loaded.diagnostics) {
+        collector.add(mapConceptDiagnostic(diagnostic, file));
+      }
+      if (
+        loaded.diagnostics.some(
+          (diagnostic) => diagnostic.code === "YAML-UNSUPPORTED",
+        )
+      ) {
+        collector.markIncomplete();
+      }
+      continue;
+    }
+
+    const { frontmatter } = loaded.concept;
+    const displayFile = displayFileFor(
+      file,
+      frontmatter,
+      manifestState.excludedSensitivityClasses,
+    );
+    if (displayFile === "<excluded>") {
+      redactedEntryPaths.add(sanitizeFile(file));
+      if (
+        typeof frontmatter.resource === "string" &&
+        frontmatter.resource.startsWith("/")
+      ) {
+        redactedEntryPaths.add(sanitizeFile(frontmatter.resource));
+      }
+    }
+    validateMarkdownLinks(
+      loaded.concept.bodyText,
+      hostPath,
+      displayFile,
+      root,
+      entries,
+      collector,
+    );
+
+    const type = frontmatter.type;
+    const bookieValue = frontmatter.bookie;
+    if (!isObject(bookieValue)) {
+      if (typeof type !== "string" || type.length === 0) {
+        collector.add(
+          createDiagnostic("CONCEPT-SCHEMA", displayFile, {
+            instancePath: "/type",
+            keyword: typeof type === "string" ? "minLength" : "required",
+          }),
+        );
+      }
+      continue;
+    }
+
+    candidates.push({
+      path: file,
+      displayFile,
+      ...(typeof type === "string" ? { type } : {}),
+      ...(typeof bookieValue.uid === "string" ? { uid: bookieValue.uid } : {}),
+      ...(typeof bookieValue.profile === "string"
+        ? { profile: bookieValue.profile }
+        : {}),
+    });
+
+    if (typeof type !== "string") {
+      collector.add(
+        createDiagnostic("CONCEPT-SCHEMA", displayFile, {
+          instancePath: "/type",
+          keyword: "required",
+        }),
+      );
+      continue;
+    }
+    const validate = validators.byType.get(type);
+    if (validate === undefined) {
+      collector.add(createDiagnostic("CONCEPT-SCHEMA", displayFile));
+      continue;
+    }
+    if (!validate(frontmatter)) {
+      addSchemaDiagnostics(
+        collector,
+        "CONCEPT-SCHEMA",
+        displayFile,
+        validate.errors,
+      );
+      continue;
+    }
+
+    records.push({
+      path: file,
+      displayFile,
+      type,
+      status: frontmatter.status as string,
+      frontmatter,
+      bookie: frontmatter.bookie as unknown as BookieData,
+    });
+  }
+
+  validateCandidateIdentity(candidates, manifest, validators, collector);
+  validateCurrentTree(records, collector);
+  await validateEvidenceResources(
+    records,
+    manifest,
+    root,
+    entries,
+    limits,
+    collector,
+    options.signal,
+    tracker,
+  );
+  throwIfAborted(options.signal);
+  if (!(await verifyTrackedPaths(tracker, options.signal))) {
+    collector.add(createDiagnostic("VAULT-IO", "/"));
+    collector.markIncomplete();
+  }
+  collector.redactFiles(redactedEntryPaths);
+
+  const diagnostics = collector.finish();
+  const complete = collector.complete && !entries.incomplete;
+  return {
+    valid: complete && diagnostics.length === 0,
+    root,
+    diagnostics,
+    complete,
+    diagnosticsTruncated: collector.diagnosticsTruncated,
+  };
+}

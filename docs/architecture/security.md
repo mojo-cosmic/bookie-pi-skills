@@ -38,7 +38,7 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 **Threat:** crafted tool input or concept resource escapes the configured vault.
 
-**Controls:** resolve canonical absolute paths; reject paths outside the real vault root; account for symlinks; use allowlisted reference roots; queue the resolved target path; test encoded, relative, absolute, and symlink escapes.
+**Controls:** resolve canonical absolute paths; reject paths outside the real vault root; account for symlinks; use allowlisted reference roots; queue the resolved target path; test encoded, relative, absolute, and symlink escapes. Read-only vault validation snapshots every ancestor's device, inode, mode, size, and high-resolution change/modify times around enumeration or reading, rejects encoded Markdown path separators, and rechecks real paths; mutation APIs still require their own queued read-modify-write window.
 
 ### Concurrent lost updates
 
@@ -68,7 +68,7 @@ Git permissions authorize canonical writes. The Bookie service authorizes retrie
 
 **Threat:** parsers consume hostile documents or exhaust resources.
 
-**Controls:** initial ingestion is Markdown plus explicitly allowed evidence types; size, chunk, depth, and timeout limits; no execution of attachments; sandbox future extractors; disclose skipped content.
+**Controls:** initial ingestion is Markdown plus explicitly allowed evidence types; size, chunk, depth, and timeout limits; no execution of attachments; sandbox future extractors; disclose skipped content. Evidence validation streams exact bytes through SHA-256 from one no-follow file handle and rechecks high-resolution identity metadata rather than buffering attachments. The synchronous core YAML loader enforces byte/depth bounds and a hostile-input regression budget; bulk CLI/service ingestion must add a cancellable worker or process deadline rather than pretending a synchronous parser can be interrupted in place.
 
 ### Unauthorized service or Redis access
 
