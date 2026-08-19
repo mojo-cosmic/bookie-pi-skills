@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress — BK-007 vault validation complete; BK-008 safe mutation ready
+In progress — BK-007 vault validation merged and verified; BK-008 safe mutation ready
 
 Owner: unassigned  
 Target release: 0.1  
@@ -59,7 +59,7 @@ Stable BK-006 diagnostic codes are:
 | `YAML-UNSUPPORTED`  | The document uses an unsupported version, tag, alias, or unsafe integer. |
 | `YAML-ROOT`         | The parsed document root is not a mapping.                               |
 
-Schema, profile, and current-tree cross-file diagnostics are introduced by BK-007. Mutation diagnostics remain BK-008, and Git-base diagnostics remain BK-009.
+Schema, profile, and current-tree cross-file diagnostics are introduced by BK-007. Before implementation, BK-008 must pin the public create/amend request and result shapes, conflict token, mutation diagnostic codes, and queued atomic-write boundary in this specification. Git-base diagnostics remain BK-009.
 
 ## Vault validation contract
 

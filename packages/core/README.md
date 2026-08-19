@@ -1,6 +1,6 @@
 # `@bookie/core`
 
-Pure canonical-domain package for Bookie. It implements OKF/Profile lossless parsing, current-tree validation, lifecycle policy, and Evidence hashing. Later SPEC-002 slices add safe filesystem mutation, Git-base policy, local search, and canonical export.
+Pure canonical-domain package for Bookie. It implements OKF/Profile lossless parsing, current-tree validation, lifecycle policy, and Evidence hashing. BK-008 next adds safe atomic create/amend mutation; later SPEC-002 slices add Git-base policy, local search, and canonical export.
 
 It must not depend on Pi, Redis, an HTTP framework, or a concrete embedding provider. Implement against [SPEC-001](../../docs/specs/001-canonical-ledger.md) and [SPEC-002](../../docs/specs/002-core-and-cli.md).
 
