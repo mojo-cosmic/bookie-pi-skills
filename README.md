@@ -36,7 +36,7 @@ These checks validate the planning contract, schemas, policy fixtures, internal 
 
 ```text
 apps/service/          shared retrieval/indexing service (planned)
-packages/core/         format, policy, validation, and filesystem logic (planned)
+packages/core/         lossless parsing and current-tree vault validation (in progress)
 packages/cli/          automation and CI interface (planned)
 packages/pi-extension/ Pi package, tools, commands, and hooks (planned)
 docs/                  product, architecture, planning, and executable specs

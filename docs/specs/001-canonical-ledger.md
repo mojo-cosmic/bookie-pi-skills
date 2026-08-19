@@ -4,7 +4,7 @@
 
 Implemented
 
-Verification pending: production lossless YAML loading and executable whole-vault/Git-base enforcement in SPEC-002 must consume these contracts without drift.
+Verification pending: SPEC-002 now provides production lossless YAML loading and current-tree whole-vault enforcement; Git-base immutability, retention, and pinned-identity rules remain BK-009.
 
 Owner: unassigned  
 Target release: 0.1  
@@ -83,7 +83,7 @@ The common schema at `schemas/bookie-common.schema.json` and the type schemas un
 - Research is either project-scoped with `bookie.project` or explicitly shared within its vault with `bookie.scope: shared`. Exactly one is required. Shared scope never crosses a vault and is not an authorization boundary.
 - Evidence uses top-level OKF `resource`; `bookie.resource` is not the canonical placement. `bookie.mime_type` is a media type essence containing type and subtype registration names of 1 through 127 characters each; parameters and wildcards are rejected. Optional `bookie.origin` accepts absolute HTTP(S) URLs without embedded credentials. Concept-schema validators MUST assert the standard `uri` format rather than treating it as annotation-only; lexical guards additionally constrain scheme, host, port, credentials, controls, and percent escapes. Origin validation is syntactic and never authorizes a fetch.
 
-These corrections remain within profile 1.0 because the concept schemas have not reached accepted `main` or a release. Once profile 1.0 is accepted, changing required placement or Research scope semantics is breaking and follows the migration rule in the accepted data model.
+These corrections remain within profile 1.0 because the concept schemas have not reached a release. Once profile 1.0 is released, changing required placement or Research scope semantics is breaking and follows the migration rule in the accepted data model.
 
 ### Profile 1.0 identity and relation contract
 
@@ -160,7 +160,7 @@ Every Evidence concept in the supplied Git base tree remains at the same path wi
 
 #### `EVIDENCE-RESOURCE`
 
-The Evidence `resource` path, after removing its leading `/`, is contained on a path-segment boundary beneath one configured literal `policy.evidence_roots` path. It resolves inside the real vault root to a tracked regular file, not a directory, symlink, or submodule, and its byte size does not exceed `policy.attachment_max_bytes`. Missing files, traversal, root escapes, and changes or deletion of bytes referenced by Git-base Evidence fail.
+The Evidence `resource` path, after removing its leading `/`, is contained on a path-segment boundary beneath one configured literal `policy.evidence_roots` path. It resolves inside the real vault root to a tracked regular file with exactly one filesystem link, not a directory, symlink, hardlink alias, or submodule, and its byte size does not exceed `policy.attachment_max_bytes`. Missing files, traversal, root escapes, and changes or deletion of bytes referenced by Git-base Evidence fail.
 
 #### `EVIDENCE-DIGEST`
 
@@ -175,6 +175,8 @@ Every `bookie.supports` path resolves in the proposed tree to a schema-valid Boo
 Profile versions are exact `MAJOR.MINOR` schema identifiers. Additive optional changes create a minor schema; an older reader may expose a newer minor as generic read-only OKF but must not claim Bookie validation or mutate it without declared compatibility. Changed meaning, required fields, enum removals, or incompatible placement require a breaking major and explicit migration with dry-run, complete validation, backwards-compatibility fixtures, and Git rollback.
 
 A major migration never rewrites merged Activity or Evidence merely to change `bookie.profile`. The target profile must explicitly recognize each retained historical schema for legacy immutable records; those records retain exact bytes and validate against their declared schema, while new corrections use the target profile. If the target cannot recognize all retained immutable profiles, migration fails. The complete operational contract is documented in the [profile 1.0 reference](../reference/profile-v1.md#compatibility-and-migration).
+
+The current `schemas/bookie-common.schema.json` and `schemas/types/*.schema.json` files are the frozen concept schema set for profile 1.0. Before accepting another profile generation, an ADR and migration increment must copy that set into a version-addressed registry, keep these canonical 1.0 URIs resolvable, and make runtime selection explicit by each record's declared profile. A later profile must not edit the only retained copy of an historical schema.
 
 ### Deferred runtime policy
 

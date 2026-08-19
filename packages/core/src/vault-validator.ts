@@ -1,5 +1,5 @@
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
-import { resolve } from "node:path";
+import { posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -28,9 +28,11 @@ import {
 } from "./vault-filesystem.js";
 import type { PathTracker } from "./vault-filesystem.js";
 import { validateMarkdownLinks } from "./vault-markdown.js";
+import { parseStrictYamlMapping } from "./strict-yaml.js";
 import type {
   BookieCandidate,
   BookieData,
+  BookiePolicySource,
   BookieRecord,
   Manifest,
   ManifestState,
@@ -153,6 +155,73 @@ function isObject(value: unknown): value is Readonly<Record<string, unknown>> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function trustedPolicySource(
+  path: string,
+  displayFile: string,
+  type: string,
+  frontmatter: Readonly<Record<string, unknown>>,
+  bookie: Readonly<Record<string, unknown>>,
+): BookiePolicySource {
+  const status =
+    typeof frontmatter.status === "string" ? frontmatter.status : undefined;
+  const profile =
+    typeof bookie.profile === "string" ? bookie.profile : undefined;
+  const uid = typeof bookie.uid === "string" ? bookie.uid : undefined;
+  const project =
+    typeof bookie.project === "string" ? bookie.project : undefined;
+  const state = typeof bookie.state === "string" ? bookie.state : undefined;
+  const sensitivity =
+    typeof bookie.sensitivity === "string" ? bookie.sensitivity : undefined;
+  const sha256 = typeof bookie.sha256 === "string" ? bookie.sha256 : undefined;
+  let relations: BookieData["relations"];
+  if (Array.isArray(bookie.relations)) {
+    const trusted = [];
+    let malformed = false;
+    for (const relation of bookie.relations) {
+      if (
+        !isObject(relation) ||
+        typeof relation.kind !== "string" ||
+        typeof relation.target !== "string" ||
+        (relation.target_uid !== undefined &&
+          typeof relation.target_uid !== "string")
+      ) {
+        malformed = true;
+        break;
+      }
+      trusted.push({
+        kind: relation.kind,
+        target: relation.target,
+        ...(relation.target_uid === undefined
+          ? {}
+          : { target_uid: relation.target_uid }),
+      });
+    }
+    if (!malformed) relations = trusted;
+  }
+  const supports =
+    Array.isArray(bookie.supports) &&
+    bookie.supports.every((support) => typeof support === "string")
+      ? bookie.supports
+      : undefined;
+  return {
+    path,
+    displayFile,
+    type,
+    ...(status === undefined ? {} : { status }),
+    frontmatter,
+    bookie: {
+      ...(profile === undefined ? {} : { profile }),
+      ...(uid === undefined ? {} : { uid }),
+      ...(project === undefined ? {} : { project }),
+      ...(state === undefined ? {} : { state }),
+      ...(sensitivity === undefined ? {} : { sensitivity }),
+      ...(relations === undefined ? {} : { relations }),
+      ...(supports === undefined ? {} : { supports }),
+      ...(sha256 === undefined ? {} : { sha256 }),
+    },
+  };
+}
+
 async function loadSchemaValidators(): Promise<SchemaValidators> {
   const readJson = async (path: string): Promise<Record<string, unknown>> =>
     JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
@@ -219,19 +288,6 @@ function addSchemaDiagnostics(
       }),
     );
   }
-}
-
-function wrapManifest(bytes: Uint8Array): Uint8Array {
-  const opening = new TextEncoder().encode("---\n");
-  const needsNewline = bytes.length > 0 && bytes[bytes.length - 1] !== 0x0a;
-  const closing = new TextEncoder().encode(needsNewline ? "\n---\n" : "---\n");
-  const wrapped = new Uint8Array(
-    opening.length + bytes.length + closing.length,
-  );
-  wrapped.set(opening, 0);
-  wrapped.set(bytes, opening.length);
-  wrapped.set(closing, opening.length + bytes.length);
-  return wrapped;
 }
 
 function excludedSensitivityClasses(
@@ -308,17 +364,25 @@ async function readManifest(
     return { excludedSensitivityClasses: [] };
   }
 
-  const loaded = loadConcept(wrapManifest(read.bytes), {
-    file: "/bookie.yaml",
-    maxDepth: limits.maxYamlDepth,
-  });
-  if (!loaded.ok) {
+  let manifestText: string;
+  try {
+    manifestText = new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(read.bytes);
+  } catch {
+    collector.add(createDiagnostic("MANIFEST-SYNTAX", "/bookie.yaml"));
+    collector.markIncomplete();
+    return { excludedSensitivityClasses: [] };
+  }
+  const parsed = parseStrictYamlMapping(manifestText, limits.maxYamlDepth);
+  if (!parsed.ok) {
     collector.add(createDiagnostic("MANIFEST-SYNTAX", "/bookie.yaml"));
     collector.markIncomplete();
     return { excludedSensitivityClasses: [] };
   }
 
-  const decoded = loaded.concept.frontmatter;
+  const decoded = parsed.value;
   const redaction = excludedSensitivityClasses(decoded);
   if (!validators.manifest(decoded)) {
     addSchemaDiagnostics(
@@ -355,7 +419,7 @@ function displayFileFor(
 }
 
 async function validateEvidenceResources(
-  records: readonly BookieRecord[],
+  records: readonly BookiePolicySource[],
   manifest: Manifest | undefined,
   root: string,
   entries: VaultEntries,
@@ -408,11 +472,15 @@ async function validateEvidenceResources(
           tracker,
         );
         if (!hashed.ok) {
+          totalResourceBytes += hashed.bytesRead;
           if (
             hashed.reason === "size" &&
-            (hashed.size ?? 0) <= manifest.policy.attachment_max_bytes
+            ((hashed.size ?? 0) <= manifest.policy.attachment_max_bytes ||
+              hashed.bytesRead > remaining)
           ) {
             collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+            collector.markIncomplete();
+          } else if (hashed.reason === "io" || hashed.reason === "unsafe") {
             collector.markIncomplete();
           }
           cached = { ok: false };
@@ -428,7 +496,10 @@ async function validateEvidenceResources(
       collector.add(
         createDiagnostic("EVIDENCE-RESOURCE", evidence.displayFile),
       );
-    } else if (cached.digest !== evidence.bookie.sha256) {
+    } else if (
+      typeof evidence.bookie.sha256 === "string" &&
+      cached.digest !== evidence.bookie.sha256
+    ) {
       collector.add(createDiagnostic("EVIDENCE-DIGEST", evidence.displayFile));
     }
   }
@@ -451,6 +522,7 @@ export async function validateVault(
     const metadata = await stat(root);
     if (!metadata.isDirectory()) throw new Error("not a directory");
   } catch {
+    throwIfAborted(options.signal);
     collector.add(createDiagnostic("VAULT-ROOT", "/"));
     collector.markIncomplete();
     const diagnostics = collector.finish();
@@ -485,8 +557,18 @@ export async function validateVault(
     tracker,
   );
 
+  if (!entries.regularFiles.has("index.md")) {
+    collector.add(
+      createDiagnostic("CONCEPT-SCHEMA", "/index.md", {
+        instancePath: "/okf_version",
+        keyword: "required",
+      }),
+    );
+  }
+
   const candidates: BookieCandidate[] = [];
   const records: BookieRecord[] = [];
+  const policySources: BookiePolicySource[] = [];
   const redactedEntryPaths = new Set<string>();
   let conceptCount = 0;
   let totalConceptBytes = 0;
@@ -529,6 +611,48 @@ export async function validateVault(
       break;
     }
 
+    if (relativePath === "index.md") {
+      const loadedIndex = loadConcept(read.bytes, {
+        file,
+        maxBytes: limits.maxConceptBytes,
+        maxDepth: limits.maxYamlDepth,
+      });
+      if (!loadedIndex.ok) {
+        for (const diagnostic of loadedIndex.diagnostics) {
+          collector.add(mapConceptDiagnostic(diagnostic, file));
+        }
+        if (
+          loadedIndex.diagnostics.some(
+            (diagnostic) => diagnostic.code === "YAML-UNSUPPORTED",
+          )
+        ) {
+          collector.markIncomplete();
+        }
+        continue;
+      }
+      if (loadedIndex.concept.frontmatter.okf_version !== "0.2") {
+        collector.add(
+          createDiagnostic("CONCEPT-SCHEMA", file, {
+            instancePath: "/okf_version",
+            keyword:
+              loadedIndex.concept.frontmatter.okf_version === undefined
+                ? "required"
+                : "const",
+          }),
+        );
+      }
+      await validateMarkdownLinks(
+        loadedIndex.concept.bodyText,
+        hostPath,
+        file,
+        root,
+        entries,
+        collector,
+        options.signal,
+      );
+      continue;
+    }
+
     if (isReservedMarkdown(relativePath)) {
       let body: string;
       try {
@@ -543,7 +667,15 @@ export async function validateVault(
         });
         continue;
       }
-      validateMarkdownLinks(body, hostPath, file, root, entries, collector);
+      await validateMarkdownLinks(
+        body,
+        hostPath,
+        file,
+        root,
+        entries,
+        collector,
+        options.signal,
+      );
       continue;
     }
 
@@ -580,21 +712,42 @@ export async function validateVault(
       manifestState.excludedSensitivityClasses,
     );
     if (displayFile === "<excluded>") {
+      const addSensitivePath = (value: unknown): void => {
+        if (typeof value === "string" && value.startsWith("/")) {
+          redactedEntryPaths.add(sanitizeFile(posix.normalize(value)));
+        }
+      };
       redactedEntryPaths.add(sanitizeFile(file));
-      if (
-        typeof frontmatter.resource === "string" &&
-        frontmatter.resource.startsWith("/")
-      ) {
-        redactedEntryPaths.add(sanitizeFile(frontmatter.resource));
+      addSensitivePath(frontmatter.resource);
+      if (Array.isArray(frontmatter.sources)) {
+        for (const source of frontmatter.sources) {
+          if (isObject(source)) addSensitivePath(source.resource);
+        }
+      }
+      const rawBookie = isObject(frontmatter.bookie)
+        ? frontmatter.bookie
+        : undefined;
+      addSensitivePath(rawBookie?.project);
+      if (Array.isArray(rawBookie?.supports)) {
+        for (const support of rawBookie.supports) addSensitivePath(support);
+      }
+      if (Array.isArray(rawBookie?.relations)) {
+        for (const relation of rawBookie.relations) {
+          if (isObject(relation)) addSensitivePath(relation.target);
+        }
       }
     }
-    validateMarkdownLinks(
+    await validateMarkdownLinks(
       loaded.concept.bodyText,
       hostPath,
       displayFile,
       root,
       entries,
       collector,
+      options.signal,
+      displayFile === "<excluded>"
+        ? (target) => redactedEntryPaths.add(sanitizeFile(target))
+        : undefined,
     );
 
     const type = frontmatter.type;
@@ -635,6 +788,13 @@ export async function validateVault(
       collector.add(createDiagnostic("CONCEPT-SCHEMA", displayFile));
       continue;
     }
+    const policySource = trustedPolicySource(
+      file,
+      displayFile,
+      type,
+      frontmatter,
+      bookieValue,
+    );
     if (!validate(frontmatter)) {
       addSchemaDiagnostics(
         collector,
@@ -642,23 +802,26 @@ export async function validateVault(
         displayFile,
         validate.errors,
       );
+      policySources.push(policySource);
       continue;
     }
 
-    records.push({
+    const record = {
       path: file,
       displayFile,
       type,
       status: frontmatter.status as string,
       frontmatter,
       bookie: frontmatter.bookie as unknown as BookieData,
-    });
+    };
+    records.push(record);
+    policySources.push(record);
   }
 
   validateCandidateIdentity(candidates, manifest, validators, collector);
-  validateCurrentTree(records, collector);
+  await validateCurrentTree(records, collector, options.signal, policySources);
   await validateEvidenceResources(
-    records,
+    policySources,
     manifest,
     root,
     entries,
@@ -672,6 +835,7 @@ export async function validateVault(
     collector.add(createDiagnostic("VAULT-IO", "/"));
     collector.markIncomplete();
   }
+  throwIfAborted(options.signal);
   collector.redactFiles(redactedEntryPaths);
 
   const diagnostics = collector.finish();

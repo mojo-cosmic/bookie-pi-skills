@@ -96,7 +96,7 @@ const remediations: Record<
   "DECISION-SUPERSESSION":
     "Correct reciprocal links, lifecycle, project, cycle, or replacement cardinality.",
   "EVIDENCE-RESOURCE":
-    "Use a bounded regular file beneath a configured evidence root without symlinks.",
+    "Use a singly linked bounded regular file beneath a configured evidence root without symlinks.",
   "EVIDENCE-DIGEST":
     "Recompute lowercase SHA-256 over the exact stored resource bytes.",
   "EVIDENCE-SUPPORT":
@@ -193,9 +193,20 @@ export class DiagnosticCollector {
   }
 
   redactFiles(files: ReadonlySet<string>): void {
+    const sensitivePaths = [...files].filter(
+      (file) => file.startsWith("/") && file !== "/",
+    );
     for (let index = 0; index < this.#diagnostics.length; index += 1) {
       const diagnostic = this.#diagnostics[index];
-      if (diagnostic !== undefined && files.has(diagnostic.file)) {
+      if (
+        diagnostic !== undefined &&
+        sensitivePaths.some(
+          (sensitive) =>
+            diagnostic.file === sensitive ||
+            diagnostic.file.startsWith(`${sensitive}/`) ||
+            sensitive.startsWith(`${diagnostic.file}/`),
+        )
+      ) {
         this.#diagnostics[index] = { ...diagnostic, file: "<excluded>" };
       }
     }

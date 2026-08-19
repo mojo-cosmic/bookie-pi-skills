@@ -1,5 +1,13 @@
-import { isAlias, isMap, isNode, isScalar, isSeq, parseDocument } from "yaml";
-import type { Node, ParsedNode } from "yaml";
+import {
+  parseStrictYamlMapping,
+  type ReadonlyYamlMapping,
+} from "./strict-yaml.js";
+
+export type {
+  ReadonlyYamlMapping,
+  ReadonlyYamlScalar,
+  ReadonlyYamlValue,
+} from "./strict-yaml.js";
 
 export const DEFAULT_MAX_CONCEPT_BYTES = 1_048_576;
 export const DEFAULT_MAX_YAML_DEPTH = 64;
@@ -35,11 +43,15 @@ export interface ConceptDiagnostic {
   readonly range?: SourceRange;
 }
 
-export interface LoadedConcept {
+declare class LoadedConceptOwnership {
+  private readonly loadedConceptOwnership: never;
+}
+
+export interface LoadedConcept extends LoadedConceptOwnership {
   readonly file: string;
   readonly rawText: string;
   readonly frontmatterText: string;
-  readonly frontmatter: Readonly<Record<string, unknown>>;
+  readonly frontmatter: ReadonlyYamlMapping;
   readonly bodyText: string;
 }
 
@@ -66,12 +78,8 @@ interface FrontmatterEnvelope {
   readonly bodyStart: number;
 }
 
-interface UnsupportedNode {
-  readonly node: Node;
-}
-
 interface LoadedConceptState {
-  readonly document: ReturnType<typeof parseDocument>;
+  readonly document: object;
   readonly envelope: FrontmatterEnvelope;
   readonly sourceBytes: Uint8Array;
 }
@@ -79,15 +87,6 @@ interface LoadedConceptState {
 const loadedConceptStates = new WeakMap<LoadedConcept, LoadedConceptState>();
 const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const encoder = new TextEncoder();
-const allowedExplicitTags = new Set([
-  "tag:yaml.org,2002:bool",
-  "tag:yaml.org,2002:float",
-  "tag:yaml.org,2002:int",
-  "tag:yaml.org,2002:map",
-  "tag:yaml.org,2002:null",
-  "tag:yaml.org,2002:seq",
-  "tag:yaml.org,2002:str",
-]);
 
 const messages: Record<ConceptDiagnosticCode, string> = {
   "CONCEPT-SIZE": "Concept exceeds the configured byte limit.",
@@ -224,110 +223,6 @@ function sourceRange(
   };
 }
 
-function nodeRange(
-  source: string,
-  yamlStart: number,
-  yamlLength: number,
-  node: Node | null,
-): SourceRange | undefined {
-  const range = node?.range;
-  return range === undefined || range === null
-    ? undefined
-    : sourceRange(source, yamlStart, range[0], range[2], yamlLength);
-}
-
-function findUnsupportedNode(
-  root: ParsedNode,
-  maxDepth: number,
-): UnsupportedNode | undefined {
-  const stack: Array<{ node: Node; depth: number }> = [
-    { node: root, depth: 1 },
-  ];
-
-  while (stack.length > 0) {
-    const current = stack.pop();
-    if (current === undefined) break;
-    const { node, depth } = current;
-
-    if (depth > maxDepth || isAlias(node)) return { node };
-    if (
-      node.tag !== undefined &&
-      node.tag !== null &&
-      !allowedExplicitTags.has(node.tag)
-    ) {
-      return { node };
-    }
-    if (isScalar(node)) {
-      if (
-        typeof node.value === "bigint" &&
-        (node.value > BigInt(Number.MAX_SAFE_INTEGER) ||
-          node.value < BigInt(Number.MIN_SAFE_INTEGER))
-      ) {
-        return { node };
-      }
-      if (
-        typeof node.value === "number" &&
-        (!Number.isFinite(node.value) ||
-          (Number.isInteger(node.value) && !Number.isSafeInteger(node.value)))
-      ) {
-        return { node };
-      }
-    }
-
-    if (isMap(node)) {
-      for (const pair of node.items) {
-        if (isNode(pair.key)) stack.push({ node: pair.key, depth });
-        if (isNode(pair.value)) {
-          stack.push({
-            node: pair.value,
-            depth: isMap(pair.value) || isSeq(pair.value) ? depth + 1 : depth,
-          });
-        }
-      }
-    } else if (isSeq(node)) {
-      for (const item of node.items) {
-        if (isNode(item)) {
-          stack.push({
-            node: item,
-            depth: isMap(item) || isSeq(item) ? depth + 1 : depth,
-          });
-        }
-      }
-    }
-  }
-
-  return undefined;
-}
-
-function normalizeBigInts(value: unknown): unknown {
-  if (typeof value === "bigint") return Number(value);
-  if (Array.isArray(value)) {
-    for (let index = 0; index < value.length; index += 1) {
-      value[index] = normalizeBigInts(value[index]);
-    }
-    return value;
-  }
-  if (value !== null && typeof value === "object") {
-    for (const [key, child] of Object.entries(value)) {
-      Object.defineProperty(value, key, {
-        value: normalizeBigInts(child),
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      });
-    }
-  }
-  return value;
-}
-
-function deepFreeze(value: unknown): void {
-  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
-    return;
-  }
-  for (const child of Object.values(value)) deepFreeze(child);
-  Object.freeze(value);
-}
-
 export function loadConcept(
   input: Uint8Array,
   options: LoadConceptOptions,
@@ -373,143 +268,38 @@ export function loadConcept(
     envelope.contentStart,
     envelope.contentEnd,
   );
-  const versionDirective =
-    /^%YAML[\t ]+([^\t #\r\n]+)[\t ]*(?:#[^\r\n]*)?(?:\r?\n|$)/m.exec(
-      frontmatterText,
-    );
-  if (versionDirective !== null && versionDirective[1] !== "1.2") {
-    return fail(
-      "YAML-UNSUPPORTED",
-      options.file,
-      sourceRange(
-        source,
-        envelope.contentStart,
-        versionDirective.index,
-        versionDirective.index + versionDirective[0].trimEnd().length,
-        frontmatterText.length,
-      ),
-    );
-  }
-
-  let document;
-  try {
-    document = parseDocument(frontmatterText, {
-      intAsBigInt: true,
-      keepSourceTokens: true,
-      merge: false,
-      prettyErrors: false,
-      resolveKnownTags: false,
-      schema: "core",
-      strict: true,
-      stringKeys: true,
-      uniqueKeys: true,
-      version: "1.2",
-    });
-  } catch {
-    return fail("YAML-UNSUPPORTED", options.file);
-  }
-
-  const parseError = document.errors[0];
-  if (parseError !== undefined) {
-    return fail(
-      parseError.code === "RESOURCE_EXHAUSTION"
-        ? "YAML-UNSUPPORTED"
-        : "YAML-SYNTAX",
-      options.file,
-      sourceRange(
-        source,
-        envelope.contentStart,
-        parseError.pos[0],
-        parseError.pos[1],
-        frontmatterText.length,
-      ),
-    );
-  }
-
-  if (
-    document.directives.yaml.version !== "1.2" ||
-    document.warnings.length > 0
-  ) {
-    const warning = document.warnings[0];
+  const parsed = parseStrictYamlMapping(frontmatterText, maxDepth);
+  if (!parsed.ok) {
+    const code =
+      parsed.code === "root"
+        ? "YAML-ROOT"
+        : parsed.code === "syntax"
+          ? "YAML-SYNTAX"
+          : "YAML-UNSUPPORTED";
     const range =
-      warning === undefined
-        ? sourceRange(
-            source,
-            envelope.contentStart,
-            0,
-            0,
-            frontmatterText.length,
-          )
+      parsed.range === undefined
+        ? undefined
         : sourceRange(
             source,
             envelope.contentStart,
-            warning.pos[0],
-            warning.pos[1],
+            parsed.range[0],
+            parsed.range[1],
             frontmatterText.length,
           );
-    return fail("YAML-UNSUPPORTED", options.file, range);
+    return fail(code, options.file, range);
   }
 
-  if (!isMap(document.contents)) {
-    return fail(
-      "YAML-ROOT",
-      options.file,
-      nodeRange(
-        source,
-        envelope.contentStart,
-        frontmatterText.length,
-        document.contents,
-      ),
-    );
-  }
+  const frontmatter = parsed.value;
 
-  const unsupported = findUnsupportedNode(document.contents, maxDepth);
-  if (unsupported !== undefined) {
-    return fail(
-      "YAML-UNSUPPORTED",
-      options.file,
-      nodeRange(
-        source,
-        envelope.contentStart,
-        frontmatterText.length,
-        unsupported.node,
-      ),
-    );
-  }
-
-  let frontmatter: unknown;
-  try {
-    frontmatter = normalizeBigInts(document.toJS({ maxAliasCount: 0 }));
-  } catch {
-    return fail("YAML-UNSUPPORTED", options.file);
-  }
-  if (
-    frontmatter === null ||
-    typeof frontmatter !== "object" ||
-    Array.isArray(frontmatter)
-  ) {
-    return fail(
-      "YAML-ROOT",
-      options.file,
-      nodeRange(
-        source,
-        envelope.contentStart,
-        frontmatterText.length,
-        document.contents,
-      ),
-    );
-  }
-  deepFreeze(frontmatter);
-
-  const concept: LoadedConcept = Object.freeze({
+  const concept = Object.freeze({
     file: options.file,
     rawText: source,
     frontmatterText,
-    frontmatter: frontmatter as Readonly<Record<string, unknown>>,
+    frontmatter,
     bodyText: source.slice(envelope.bodyStart),
-  });
+  }) as LoadedConcept;
   loadedConceptStates.set(concept, {
-    document,
+    document: parsed.document,
     envelope,
     sourceBytes,
   });

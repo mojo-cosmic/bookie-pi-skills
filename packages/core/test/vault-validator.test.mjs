@@ -21,6 +21,7 @@ import {
   DEFAULT_MAX_VAULT_CONCEPTS,
   DEFAULT_MAX_VAULT_DIAGNOSTICS,
   DEFAULT_MAX_VAULT_ENTRIES,
+  loadConcept,
   validateVault,
 } from "../dist/index.js";
 
@@ -75,7 +76,10 @@ async function materializePolicyCase(t, fixture) {
       },
     }),
   );
-  await writeFile(join(vault, "index.md"), "# Policy fixture\n");
+  await writeFile(
+    join(vault, "index.md"),
+    '---\nokf_version: "0.2"\n---\n\n# Policy fixture\n',
+  );
 
   for (const descriptor of fixture.facts.proposed.concepts ?? []) {
     const base = JSON.parse(
@@ -215,6 +219,32 @@ test("production validator consumes every current-tree policy fixture", async (t
   }
 });
 
+test("BK-009 base-only policy fixtures remain valid current trees", async (t) => {
+  const deferredIds = new Set([
+    "activity-deleted",
+    "activity-edited",
+    "activity-renamed",
+    "decision-deleted",
+    "evidence-deleted",
+    "evidence-edited",
+    "evidence-renamed",
+    "immutable-project-target-renamed",
+    "immutable-relation-target-renamed",
+    "immutable-support-target-renamed",
+  ]);
+  const fixtures = JSON.parse(
+    await readFile(join(policyFixtureRoot, "invalid/cases.json"), "utf8"),
+  ).filter((fixture) => deferredIds.has(fixture.id));
+  assert.equal(fixtures.length, deferredIds.size);
+  for (const fixture of fixtures) {
+    await t.test(fixture.id, async (t) => {
+      const vault = await materializePolicyCase(t, fixture);
+      const result = await validateVault(vault);
+      assert.equal(result.valid, true, JSON.stringify(result.diagnostics));
+    });
+  }
+});
+
 test("production validator accepts every valid current-tree policy fixture", async (t) => {
   const fixtures = JSON.parse(
     await readFile(join(policyFixtureRoot, "valid/cases.json"), "utf8"),
@@ -320,6 +350,7 @@ test("manifest failures do not hide independent concept parse failures", async (
   const parent = await mkdtemp(join(tmpdir(), "bookie-invalid-vault-"));
   t.after(() => rm(parent, { recursive: true, force: true }));
   await writeFile(join(parent, "bookie.yaml"), "profile: [\n");
+  await writeFile(join(parent, "index.md"), '---\nokf_version: "0.2"\n---\n');
   await writeFile(join(parent, "broken.md"), "---\ntype: [\n---\nBody\n");
 
   const result = await validateVault(parent);
@@ -408,8 +439,14 @@ test("CommonMark inline, image, and reference links resolve without rendering or
       "![Evidence bytes](/references/files/source.bin)",
       "[Unicode research](../research/%CE%94-findings.md)",
       "[Remote](https://example.com/not-fetched)",
+      "[Fragment](#links)",
+      "[Query](?view=1)",
+      "[Directory](../tasks/)",
+      "[Project query](../project.md?view=1#summary)",
+      '<a href="../../outside.md">raw HTML is inert</a>',
       "",
       "[project]: ../project.md",
+      "[unused]: missing.md",
       "",
     ].join("\n"),
   );
@@ -506,6 +543,23 @@ test("resource metadata changes during streamed hashing fail closed", async (t) 
       .update(resource)
       .digest("hex");
   });
+  const secondResource = Buffer.from("second resource");
+  await writeFile(join(vault, "references/files/second.bin"), secondResource);
+  const loadedEvidence = loadConcept(await readFile(evidencePath), {
+    file: evidencePath,
+  });
+  assert.equal(loadedEvidence.ok, true);
+  const secondEvidence = structuredClone(loadedEvidence.concept.frontmatter);
+  secondEvidence.title = "Second evidence";
+  secondEvidence.resource = "/references/files/second.bin";
+  secondEvidence.bookie.uid = "EVD-00000000000000000000000008";
+  secondEvidence.bookie.sha256 = createHash("sha256")
+    .update(secondResource)
+    .digest("hex");
+  await writeFile(
+    join(vault, "projects/fixture/evidence/zz-second.md"),
+    `---\n${JSON.stringify(secondEvidence)}\n---\n`,
+  );
 
   let mutate = true;
   const mutator = (async () => {
@@ -518,7 +572,9 @@ test("resource metadata changes during streamed hashing fail closed", async (t) 
   })();
   let result;
   try {
-    result = await validateVault(vault);
+    result = await validateVault(vault, {
+      maxTotalResourceBytes: resource.byteLength,
+    });
   } finally {
     mutate = false;
     await mutator;
@@ -526,6 +582,8 @@ test("resource metadata changes during streamed hashing fail closed", async (t) 
 
   assert.equal(result.valid, false);
   assert.ok(diagnosticCodes(result).includes("EVIDENCE-RESOURCE"));
+  assert.ok(diagnosticCodes(result).includes("VAULT-BOUNDS"));
+  assert.equal(result.complete, false);
 });
 
 test("excluded sensitivity diagnostics redact canonical identifiers and content", async (t) => {
@@ -767,8 +825,12 @@ test("canonical paths and cancellation fail without process exits", async (t) =>
   );
 });
 
-test("relocated package carries canonical schemas without parser-specific public types", async (t) => {
+test("a clean relocated package carries canonical schemas and supported runtime metadata", async (t) => {
   const coreRoot = resolve(repositoryRoot, "packages/core");
+  const packageManifest = JSON.parse(
+    await readFile(resolve(coreRoot, "package.json"), "utf8"),
+  );
+  assert.equal(packageManifest.engines?.node, ">=24");
   for (const relativePath of [
     "bookie-common.schema.json",
     "profile/1.0/bookie-config.schema.json",
@@ -794,10 +856,26 @@ test("relocated package carries canonical schemas without parser-specific public
 
   const packRoot = await mkdtemp(join(tmpdir(), "bookie-core-pack-"));
   t.after(() => rm(packRoot, { recursive: true, force: true }));
+  const cleanRepository = join(packRoot, "source");
+  const cleanCore = join(cleanRepository, "packages/core");
+  await mkdir(join(cleanRepository, "packages"), { recursive: true });
+  await cp(coreRoot, cleanCore, { recursive: true });
+  await rm(join(cleanCore, "dist"), { recursive: true, force: true });
+  await rm(join(cleanCore, "tsconfig.tsbuildinfo"), { force: true });
+  await cp(
+    resolve(repositoryRoot, "schemas"),
+    join(cleanRepository, "schemas"),
+    { recursive: true },
+  );
+  await symlink(
+    resolve(repositoryRoot, "node_modules"),
+    join(cleanRepository, "node_modules"),
+    "dir",
+  );
   const packed = spawnSync(
     "npm",
-    ["pack", "--json", "--ignore-scripts", "--pack-destination", packRoot],
-    { cwd: coreRoot, encoding: "utf8" },
+    ["pack", "--json", "--pack-destination", packRoot],
+    { cwd: cleanCore, encoding: "utf8" },
   );
   assert.equal(packed.status, 0, packed.stderr);
   const parsedReport = JSON.parse(packed.stdout);
@@ -809,6 +887,7 @@ test("relocated package carries canonical schemas without parser-specific public
   for (const required of [
     "dist/index.js",
     "dist/index.d.ts",
+    "dist/vault-markdown-worker.js",
     "dist/schemas/bookie-common.schema.json",
     "dist/schemas/profile/1.0/bookie-config.schema.json",
   ]) {
@@ -816,7 +895,7 @@ test("relocated package carries canonical schemas without parser-specific public
   }
   for (const declaration of report.files
     .filter((file) => file.path.endsWith(".d.ts"))
-    .map((file) => readFile(resolve(coreRoot, file.path), "utf8"))) {
+    .map((file) => readFile(resolve(cleanCore, file.path), "utf8"))) {
     assert.doesNotMatch(await declaration, /from ["'](?:yaml|ajv|mdast)/u);
   }
 
@@ -829,16 +908,50 @@ test("relocated package carries canonical schemas without parser-specific public
   );
   assert.equal(unpacked.status, 0, unpacked.stderr);
   const relocatedRoot = join(extracted, "package");
-  await symlink(
-    resolve(repositoryRoot, "node_modules"),
-    join(relocatedRoot, "node_modules"),
-    "dir",
+  const packedManifest = JSON.parse(
+    await readFile(join(relocatedRoot, "package.json"), "utf8"),
   );
+  assert.deepEqual(Object.keys(packedManifest.dependencies).sort(), [
+    "ajv",
+    "ajv-formats",
+    "mdast-util-from-markdown",
+    "yaml",
+  ]);
+  const installRoot = join(packRoot, "installed");
+  await mkdir(installRoot);
+  await writeFile(
+    join(installRoot, "package.json"),
+    JSON.stringify({ private: true, type: "module" }),
+  );
+  const installed = spawnSync(
+    "npm",
+    [
+      "install",
+      "--offline",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      "--package-lock=false",
+      join(packRoot, report.filename),
+    ],
+    { cwd: installRoot, encoding: "utf8" },
+  );
+  assert.equal(installed.status, 0, installed.stderr || installed.stdout);
   const relocated = await import(
-    `${pathToFileURL(join(relocatedRoot, "dist/index.js")).href}?packed`
+    `${pathToFileURL(join(installRoot, "node_modules/@bookie/core/dist/index.js")).href}?packed`
   );
   const result = await relocated.validateVault(validVault);
   assert.equal(result.valid, true, JSON.stringify(result.diagnostics));
+  const packedWorkerVault = join(packRoot, "packed-worker-vault");
+  await cp(validVault, packedWorkerVault, { recursive: true });
+  const packedIndex = join(packedWorkerVault, "index.md");
+  await writeFile(
+    packedIndex,
+    `${await readFile(packedIndex, "utf8")}\n${"> ".repeat(300)}nested\n`,
+  );
+  const workerResult = await relocated.validateVault(packedWorkerVault);
+  assert.equal(workerResult.complete, false);
+  assert.ok(diagnosticCodes(workerResult).includes("MARKDOWN-LINK"));
 });
 
 test("missing roots and manifests return stable diagnostics", async (t) => {

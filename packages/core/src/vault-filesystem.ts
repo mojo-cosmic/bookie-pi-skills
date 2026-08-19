@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { constants } from "node:fs";
-import type { BigIntStats, Stats } from "node:fs";
-import { lstat, open, readdir, realpath } from "node:fs/promises";
+import type { BigIntStats, Dirent, Stats } from "node:fs";
+import { lstat, open, opendir, realpath } from "node:fs/promises";
 import { relative, resolve, sep } from "node:path";
 
 import { throwIfAborted } from "./vault-cancellation.js";
@@ -36,6 +36,7 @@ export type BoundedHashResult =
       readonly ok: false;
       readonly reason: "io" | "size" | "unsafe";
       readonly size?: number;
+      readonly bytesRead: number;
     };
 
 interface PathIdentity {
@@ -54,20 +55,63 @@ export interface PathTracker {
   readonly [pathTrackerBrand]: true;
 }
 
-const trackedSnapshots = new WeakMap<PathTracker, PathSnapshot[]>();
+interface TrackedPaths {
+  readonly identities: Map<string, BigIntStats>;
+  readonly realPaths: Map<string, string>;
+  consistent: boolean;
+}
+
+const trackedPaths = new WeakMap<PathTracker, TrackedPaths>();
 
 export function createPathTracker(): PathTracker {
   const tracker = Object.freeze({}) as PathTracker;
-  trackedSnapshots.set(tracker, []);
+  trackedPaths.set(tracker, {
+    identities: new Map(),
+    realPaths: new Map(),
+    consistent: true,
+  });
   return tracker;
 }
 
-function trackPath(tracker: PathTracker, snapshot: PathSnapshot): void {
-  const snapshots = trackedSnapshots.get(tracker);
-  if (snapshots === undefined) {
+function trackIdentity(
+  tracker: PathTracker,
+  path: string,
+  metadata: BigIntStats,
+): void {
+  const tracked = trackedPaths.get(tracker);
+  if (tracked === undefined) {
     throw new TypeError("Path tracker was not created by createPathTracker");
   }
-  snapshots.push(snapshot);
+  const previous = tracked.identities.get(path);
+  if (previous !== undefined && !samePathIdentity(previous, metadata)) {
+    tracked.consistent = false;
+  } else if (previous === undefined) {
+    tracked.identities.set(path, metadata);
+  }
+}
+
+function trackPath(tracker: PathTracker, snapshot: PathSnapshot): void {
+  const tracked = trackedPaths.get(tracker);
+  if (tracked === undefined) {
+    throw new TypeError("Path tracker was not created by createPathTracker");
+  }
+  for (const identity of snapshot.identities) {
+    trackIdentity(tracker, identity.path, identity.metadata);
+  }
+  const terminalPath = snapshot.identities.at(-1)?.path;
+  if (terminalPath === undefined) {
+    tracked.consistent = false;
+    return;
+  }
+  const previousRealPath = tracked.realPaths.get(terminalPath);
+  if (
+    previousRealPath !== undefined &&
+    previousRealPath !== snapshot.realPath
+  ) {
+    tracked.consistent = false;
+  } else if (previousRealPath === undefined) {
+    tracked.realPaths.set(terminalPath, snapshot.realPath);
+  }
 }
 
 export function bundlePath(relativePath: string): string {
@@ -87,6 +131,7 @@ function samePathIdentity(left: BigIntStats, right: BigIntStats): boolean {
     left.dev === right.dev &&
     left.ino === right.ino &&
     left.mode === right.mode &&
+    left.nlink === right.nlink &&
     left.size === right.size &&
     left.mtimeNs === right.mtimeNs &&
     left.ctimeNs === right.ctimeNs
@@ -119,7 +164,8 @@ async function captureSafePath(
       if (!final && !metadata.isDirectory()) return undefined;
       if (
         final &&
-        ((kind === "file" && !metadata.isFile()) ||
+        ((kind === "file" &&
+          (!metadata.isFile() || metadata.nlink !== BigInt(1))) ||
           (kind === "directory" && !metadata.isDirectory()))
       ) {
         return undefined;
@@ -170,15 +216,20 @@ async function readBoundedFile(
 ): Promise<BoundedReadResult> {
   throwIfAborted(signal);
   let handle;
+  if (constants.O_NOFOLLOW === undefined) {
+    return { ok: false, reason: "unsafe" };
+  }
   try {
-    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch {
     return { ok: false, reason: "io" };
   }
 
   try {
     const before = await handle.stat();
-    if (!before.isFile()) return { ok: false, reason: "unsafe" };
+    if (!before.isFile() || before.nlink !== 1) {
+      return { ok: false, reason: "unsafe" };
+    }
     if (before.size > maximumBytes) {
       return { ok: false, reason: "size", size: before.size };
     }
@@ -204,6 +255,7 @@ async function readBoundedFile(
     const after = await handle.stat();
     if (
       !after.isFile() ||
+      after.nlink !== 1 ||
       before.dev !== after.dev ||
       before.ino !== after.ino ||
       before.size !== after.size ||
@@ -235,29 +287,43 @@ async function hashBoundedFile(
 ): Promise<BoundedHashResult> {
   throwIfAborted(signal);
   let handle;
+  let total = 0;
+  if (constants.O_NOFOLLOW === undefined) {
+    return { ok: false, reason: "unsafe", bytesRead: total };
+  }
   try {
-    handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   } catch {
-    return { ok: false, reason: "io" };
+    return { ok: false, reason: "io", bytesRead: total };
   }
 
   try {
     const before = await handle.stat();
-    if (!before.isFile()) return { ok: false, reason: "unsafe" };
+    if (!before.isFile() || before.nlink !== 1) {
+      return { ok: false, reason: "unsafe", bytesRead: total };
+    }
     if (before.size > maximumBytes) {
-      return { ok: false, reason: "size", size: before.size };
+      return {
+        ok: false,
+        reason: "size",
+        size: before.size,
+        bytesRead: total,
+      };
     }
 
     const hash = createHash("sha256");
-    let total = 0;
-    const chunk = new Uint8Array(65_536);
     while (true) {
       throwIfAborted(signal);
+      const remaining = maximumBytes + 1 - total;
+      if (remaining <= 0) {
+        return { ok: false, reason: "size", size: total, bytesRead: total };
+      }
+      const chunk = new Uint8Array(Math.min(65_536, remaining));
       const { bytesRead } = await handle.read(chunk, 0, chunk.byteLength, null);
       if (bytesRead === 0) break;
       total += bytesRead;
       if (total > maximumBytes) {
-        return { ok: false, reason: "size", size: total };
+        return { ok: false, reason: "size", size: total, bytesRead: total };
       }
       hash.update(chunk.subarray(0, bytesRead));
     }
@@ -265,6 +331,7 @@ async function hashBoundedFile(
     const after = await handle.stat();
     if (
       !after.isFile() ||
+      after.nlink !== 1 ||
       before.dev !== after.dev ||
       before.ino !== after.ino ||
       before.size !== after.size ||
@@ -272,12 +339,12 @@ async function hashBoundedFile(
       before.ctimeMs !== after.ctimeMs ||
       total !== after.size
     ) {
-      return { ok: false, reason: "unsafe" };
+      return { ok: false, reason: "unsafe", bytesRead: total };
     }
     return { ok: true, digest: hash.digest("hex"), size: total, after };
   } catch {
     throwIfAborted(signal);
-    return { ok: false, reason: "io" };
+    return { ok: false, reason: "io", bytesRead: total };
   } finally {
     await handle.close();
   }
@@ -312,14 +379,16 @@ export async function hashSafeBoundedFile(
   tracker: PathTracker,
 ): Promise<BoundedHashResult> {
   const snapshot = await captureSafePath(root, relativePath, "file", signal);
-  if (snapshot === undefined) return { ok: false, reason: "unsafe" };
+  if (snapshot === undefined) {
+    return { ok: false, reason: "unsafe", bytesRead: 0 };
+  }
   const hashed = await hashBoundedFile(
     resolve(root, relativePath),
     maximumBytes,
     signal,
   );
   if (hashed.ok && !(await verifySafePath(snapshot, signal))) {
-    return { ok: false, reason: "unsafe" };
+    return { ok: false, reason: "unsafe", bytesRead: hashed.size };
   }
   if (hashed.ok) trackPath(tracker, snapshot);
   return hashed;
@@ -331,31 +400,28 @@ function matchesExcludedPath(
 ): boolean {
   const pathSegments = path.split("/").filter(Boolean);
   return patterns.some((pattern) => {
-    const patternSegments = pattern.split("/");
-    const memo = new Map<string, boolean>();
-    const match = (patternIndex: number, pathIndex: number): boolean => {
-      const key = `${patternIndex}:${pathIndex}`;
-      const known = memo.get(key);
-      if (known !== undefined) return known;
-      let result: boolean;
-      if (patternIndex === patternSegments.length) {
-        result = pathIndex === pathSegments.length;
-      } else if (patternSegments[patternIndex] === "**") {
-        result =
-          match(patternIndex + 1, pathIndex) ||
-          (pathIndex < pathSegments.length &&
-            match(patternIndex, pathIndex + 1));
+    let reachable = new Uint8Array(pathSegments.length + 1);
+    reachable[0] = 1;
+    for (const patternSegment of pattern.split("/")) {
+      const next = new Uint8Array(pathSegments.length + 1);
+      if (patternSegment === "**") {
+        next[0] = reachable[0] ?? 0;
+        for (let index = 1; index <= pathSegments.length; index += 1) {
+          next[index] = reachable[index] === 1 || next[index - 1] === 1 ? 1 : 0;
+        }
       } else {
-        result =
-          pathIndex < pathSegments.length &&
-          (patternSegments[patternIndex] === "*" ||
-            patternSegments[patternIndex] === pathSegments[pathIndex]) &&
-          match(patternIndex + 1, pathIndex + 1);
+        for (let index = 0; index < pathSegments.length; index += 1) {
+          if (
+            reachable[index] === 1 &&
+            (patternSegment === "*" || patternSegment === pathSegments[index])
+          ) {
+            next[index + 1] = 1;
+          }
+        }
       }
-      memo.set(key, result);
-      return result;
-    };
-    return match(0, 0);
+      reachable = next;
+    }
+    return reachable[pathSegments.length] === 1;
   });
 }
 
@@ -390,16 +456,34 @@ export async function enumerateVault(
       collector.markIncomplete();
       return;
     }
-    let children;
+    const children: Dirent[] = [];
     try {
-      children = await readdir(hostDirectory, { withFileTypes: true });
+      const directory = await opendir(hostDirectory);
+      for await (const child of directory) {
+        throwIfAborted(signal);
+        if (child.name === ".git") continue;
+        const relativePath = relativeDirectory
+          ? `${relativeDirectory}/${child.name}`
+          : child.name;
+        entries += 1;
+        if (entries > limits.maxEntries) {
+          collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
+          collector.markIncomplete();
+          incomplete = true;
+          break;
+        }
+        if (matchesExcludedPath(relativePath, excludes)) continue;
+        children.push(child);
+      }
     } catch {
+      throwIfAborted(signal);
       collector.add(
         createDiagnostic("VAULT-IO", bundlePath(relativeDirectory)),
       );
       collector.markIncomplete();
       return;
     }
+    if (incomplete) return;
     if (!(await verifySafePath(snapshot, signal))) {
       collector.add(
         createDiagnostic("VAULT-IO", bundlePath(relativeDirectory)),
@@ -412,18 +496,9 @@ export async function enumerateVault(
 
     for (const child of children) {
       throwIfAborted(signal);
-      if (child.name === ".git") continue;
       const relativePath = relativeDirectory
         ? `${relativeDirectory}/${child.name}`
         : child.name;
-      if (matchesExcludedPath(relativePath, excludes)) continue;
-      entries += 1;
-      if (entries > limits.maxEntries) {
-        collector.add(createDiagnostic("VAULT-BOUNDS", "/bookie.yaml"));
-        collector.markIncomplete();
-        incomplete = true;
-        return;
-      }
 
       if (child.isSymbolicLink()) {
         collector.add(createDiagnostic("VAULT-IO", bundlePath(relativePath)));
@@ -431,8 +506,26 @@ export async function enumerateVault(
         directories.add(relativePath);
         await walk(relativePath);
       } else if (child.isFile()) {
-        regularFiles.add(relativePath);
-        if (relativePath.endsWith(".md")) markdownFiles.push(relativePath);
+        let metadata: BigIntStats;
+        try {
+          metadata = await lstat(resolve(root, relativePath), { bigint: true });
+        } catch {
+          throwIfAborted(signal);
+          collector.add(createDiagnostic("VAULT-IO", bundlePath(relativePath)));
+          collector.markIncomplete();
+          continue;
+        }
+        if (
+          !metadata.isFile() ||
+          metadata.isSymbolicLink() ||
+          metadata.nlink !== BigInt(1)
+        ) {
+          collector.add(createDiagnostic("VAULT-IO", bundlePath(relativePath)));
+        } else {
+          trackIdentity(tracker, resolve(root, relativePath), metadata);
+          regularFiles.add(relativePath);
+          if (relativePath.endsWith(".md")) markdownFiles.push(relativePath);
+        }
       } else {
         collector.add(createDiagnostic("VAULT-IO", bundlePath(relativePath)));
       }
@@ -449,11 +542,25 @@ export async function verifyTrackedPaths(
   tracker: PathTracker,
   signal: AbortSignal | undefined,
 ): Promise<boolean> {
-  const snapshots = trackedSnapshots.get(tracker);
-  if (snapshots === undefined) return false;
-  for (const snapshot of snapshots) {
+  const tracked = trackedPaths.get(tracker);
+  if (tracked === undefined || !tracked.consistent) return false;
+  try {
+    for (const [path, expected] of tracked.identities) {
+      throwIfAborted(signal);
+      const metadata = await lstat(path, { bigint: true });
+      if (metadata.isSymbolicLink() || !samePathIdentity(expected, metadata)) {
+        return false;
+      }
+    }
+    for (const [path, expected] of tracked.realPaths) {
+      throwIfAborted(signal);
+      const actual = await realpath(path);
+      throwIfAborted(signal);
+      if (actual !== expected) return false;
+    }
+    return true;
+  } catch {
     throwIfAborted(signal);
-    if (!(await verifySafePath(snapshot, signal))) return false;
+    return false;
   }
-  return true;
 }

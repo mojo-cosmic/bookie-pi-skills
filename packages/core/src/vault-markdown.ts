@@ -1,15 +1,100 @@
 import { dirname, relative, resolve, sep } from "node:path";
+import { Worker } from "node:worker_threads";
 
-import { fromMarkdown } from "mdast-util-from-markdown";
-
+import { throwIfAborted } from "./vault-cancellation.js";
+import {
+  analyzeMarkdown,
+  type MarkdownAnalysis,
+} from "./vault-markdown-analysis.js";
 import { createDiagnostic, DiagnosticCollector } from "./vault-diagnostics.js";
 import type { VaultEntries } from "./vault-model.js";
 
-interface MarkdownNode {
-  readonly type: string;
-  readonly url?: string;
-  readonly identifier?: string;
-  readonly children?: readonly MarkdownNode[];
+const MAX_MARKDOWN_CONTAINER_DEPTH = 256;
+const MARKDOWN_WORKER_DEADLINE_MILLISECONDS = 5_000;
+
+function hasSuspiciousContainerComplexity(body: string): boolean {
+  let markerCount = 0;
+  for (const line of body.split("\n")) {
+    let indentationIndex = 0;
+    let indentationColumns = 0;
+    while (indentationIndex < line.length) {
+      if (line[indentationIndex] === " ") indentationColumns += 1;
+      else if (line[indentationIndex] === "\t") {
+        indentationColumns += 4 - (indentationColumns % 4);
+      } else break;
+      indentationIndex += 1;
+    }
+    const indented = line.slice(indentationIndex);
+    if (
+      indentationColumns > MAX_MARKDOWN_CONTAINER_DEPTH * 2 &&
+      /^(?:>|[+*-](?:[ \t]|$)|\d{1,9}[.)](?:[ \t]|$))/u.test(indented)
+    ) {
+      return true;
+    }
+    for (const _match of line.matchAll(
+      /(?:^|[ \t])(?:>|[+*-](?=[ \t]|$)|\d{1,9}[.)](?=[ \t]|$))/gu,
+    )) {
+      void _match;
+      markerCount += 1;
+      if (markerCount > 1_024) return true;
+    }
+  }
+  return false;
+}
+
+async function analyzeMarkdownInWorker(
+  body: string,
+  signal: AbortSignal | undefined,
+): Promise<MarkdownAnalysis | undefined> {
+  throwIfAborted(signal);
+  const worker = new Worker(
+    new URL("./vault-markdown-worker.js", import.meta.url),
+  );
+  return await new Promise<MarkdownAnalysis | undefined>((resolve, reject) => {
+    let settled = false;
+    const finish = (
+      result: MarkdownAnalysis | undefined,
+      error?: unknown,
+    ): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      void worker.terminate();
+      if (error === undefined) resolve(result);
+      else reject(error);
+    };
+    const onAbort = (): void => {
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        finish(undefined, error);
+      }
+    };
+    const timer = setTimeout(
+      () => finish(undefined),
+      MARKDOWN_WORKER_DEADLINE_MILLISECONDS,
+    );
+    signal?.addEventListener("abort", onAbort, { once: true });
+    worker.once("message", (message: unknown) => {
+      if (
+        message !== null &&
+        typeof message === "object" &&
+        "ok" in message &&
+        message.ok === true &&
+        "analysis" in message
+      ) {
+        finish(message.analysis as MarkdownAnalysis);
+      } else {
+        finish(undefined);
+      }
+    });
+    worker.once("error", () => finish(undefined));
+    worker.once("exit", (code) => {
+      if (code !== 0) finish(undefined);
+    });
+    worker.postMessage(body);
+  });
 }
 
 function isInside(root: string, target: string): boolean {
@@ -18,48 +103,6 @@ function isInside(root: string, target: string): boolean {
     pathFromRoot === "" ||
     (!pathFromRoot.startsWith(`..${sep}`) && pathFromRoot !== "..")
   );
-}
-
-function collectMarkdownDestinations(body: string): readonly string[] {
-  const tree = fromMarkdown(body) as MarkdownNode;
-  const definitions = new Map<string, string>();
-  const references: string[] = [];
-  const destinations: string[] = [];
-  const stack: MarkdownNode[] = [tree];
-
-  while (stack.length > 0) {
-    const node = stack.pop();
-    if (node === undefined) break;
-    if (
-      (node.type === "link" || node.type === "image") &&
-      typeof node.url === "string"
-    ) {
-      destinations.push(node.url);
-    } else if (
-      node.type === "definition" &&
-      typeof node.identifier === "string" &&
-      typeof node.url === "string" &&
-      !definitions.has(node.identifier)
-    ) {
-      definitions.set(node.identifier, node.url);
-    } else if (
-      (node.type === "linkReference" || node.type === "imageReference") &&
-      typeof node.identifier === "string"
-    ) {
-      references.push(node.identifier);
-    }
-    const children = node.children ?? [];
-    for (let index = children.length - 1; index >= 0; index -= 1) {
-      const child = children[index];
-      if (child !== undefined) stack.push(child);
-    }
-  }
-
-  for (const identifier of references) {
-    const destination = definitions.get(identifier);
-    if (destination !== undefined) destinations.push(destination);
-  }
-  return destinations;
 }
 
 function localLinkTarget(
@@ -95,25 +138,39 @@ function localLinkTarget(
   return relative(root, target).split(sep).join("/").replace(/\/$/u, "");
 }
 
-export function validateMarkdownLinks(
+export async function validateMarkdownLinks(
   body: string,
   sourceHostPath: string,
   displayFile: string,
   root: string,
   entries: VaultEntries,
   collector: DiagnosticCollector,
-): void {
-  let destinations: readonly string[];
+  signal: AbortSignal | undefined,
+  onLocalTarget?: (target: string) => void,
+): Promise<void> {
+  let analysis: MarkdownAnalysis | undefined;
   try {
-    destinations = collectMarkdownDestinations(body);
-  } catch {
+    analysis = hasSuspiciousContainerComplexity(body)
+      ? await analyzeMarkdownInWorker(body, signal)
+      : analyzeMarkdown(body);
+  } catch (error) {
+    throwIfAborted(signal);
+    void error;
+  }
+  throwIfAborted(signal);
+  if (
+    analysis === undefined ||
+    analysis.maximumContainerDepth > MAX_MARKDOWN_CONTAINER_DEPTH
+  ) {
     collector.add(createDiagnostic("MARKDOWN-LINK", displayFile));
+    collector.markIncomplete();
     return;
   }
 
-  for (const destination of destinations) {
+  for (const destination of analysis.destinations) {
     const target = localLinkTarget(destination, sourceHostPath, root);
     if (target === undefined) continue;
+    if (typeof target === "string") onLocalTarget?.(`/${target}`);
     if (
       target === null ||
       (!entries.regularFiles.has(target) && !entries.directories.has(target))

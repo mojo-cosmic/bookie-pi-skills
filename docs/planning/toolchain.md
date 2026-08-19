@@ -8,7 +8,7 @@ This is the supported repository-development baseline, not a promise that every 
 
 | Tool | Baseline | Policy |
 |---|---:|---|
-| Node.js | 24 | Pinned by `.nvmrc`; workspace engine is `>=24`. Use Node 24 in CI until an ADR changes the runtime line. |
+| Node.js | 24 | Pinned by `.nvmrc`; root and packable package engines are `>=24`. Use Node 24 in CI until an ADR changes the runtime line. |
 | npm | 11.9.0 | Recorded in `packageManager`; refresh the lockfile only with a compatible npm 11 release. |
 | Pi | Current release when SPEC-003 starts | No repository dependency exists yet. Add peer dependencies and a smoke-test matrix when the extension imports Pi APIs. |
 
@@ -42,7 +42,8 @@ TypeScript 7 and Node 26 types are intentionally not selected: they are not comp
 
 Repository tests verify:
 
-- `.nvmrc` and root engine alignment;
+- `.nvmrc`, root engine, and package engine alignment;
+- `@bookie/core` runs its build during `npm pack`, and a clean relocated tarball contains code, declarations, canonical schema assets, and an offline-installable runtime dependency set;
 - pinned npm package-manager syntax;
 - workspace name/version/private-state alignment with the lockfile;
 - OKF and example profile version consistency;

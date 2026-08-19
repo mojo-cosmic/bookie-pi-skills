@@ -15,11 +15,11 @@ research/.../*.md        optional vault-shared Research
 references/files/...     captured Evidence resources
 ```
 
-`index.md` declares `okf_version: "0.2"`. Reserved files such as `index.md` and `log.md` are not Bookie concepts. Every other concept is Markdown with YAML frontmatter and a human-readable body. Git `main` is accepted shared state; indexes and exports are derived.
+Required root `index.md` declares exact `okf_version: "0.2"` in YAML frontmatter. Reserved files such as `index.md` and `log.md` are not Bookie concepts. Every other concept is Markdown with YAML frontmatter and a human-readable body. Git `main` is accepted shared state; indexes and exports are derived.
 
 ## Vault manifest
 
-`bookie.yaml` validates against [`bookie-config.schema.json`](../../schemas/profile/1.0/bookie-config.schema.json). Its objects are strict and reject unknown keys.
+`bookie.yaml` is consumed as exactly one complete strict YAML 1.2 mapping and validates against [`bookie-config.schema.json`](../../schemas/profile/1.0/bookie-config.schema.json). Document-start syntax is accepted; trailing documents or content outside the one document are rejected. Its objects are strict and reject unknown keys.
 
 | Field | Contract |
 |---|---|
@@ -100,7 +100,7 @@ The OKF concept ID is the bundle-relative Markdown path without `.md`; `bookie.u
 
 A target referenced from merged immutable Activity or Evidence is path-pinned while that record remains: it cannot move or be replaced by another UID because the source bytes cannot be amended. Profile 1.0 defines no aliases or UID-only fallback.
 
-Evidence uses top-level OKF `resource`, for example `/references/files/source.txt`. The path must be beneath a configured evidence root and resolve inside the real vault to a tracked regular file—not a directory, symlink, or submodule. Its exact bytes must fit `attachment_max_bytes`; SHA-256 uses those bytes without decoding or newline normalization.
+Evidence uses top-level OKF `resource`, for example `/references/files/source.txt`. The path must be beneath a configured evidence root and resolve inside the real vault to a singly linked tracked regular file—not a directory, symlink, hardlink alias, or submodule. Its exact bytes must fit `attachment_max_bytes`; SHA-256 uses those bytes without decoding or newline normalization.
 
 ## Relations
 
@@ -136,7 +136,7 @@ Profile 1.0 defines these stable rule codes:
 | `DECISION-SUPERSESSION` | Deletion, lifecycle, project, type, cycle, or replacement-cardinality violations. |
 | `ACTIVITY-IMMUTABLE` | Edit, deletion, or rename against the Git base tree. |
 | `EVIDENCE-IMMUTABLE` | Evidence descriptor edit, deletion, or rename against the Git base tree. |
-| `EVIDENCE-RESOURCE` | Missing, escaping, oversized, non-regular, changed, or deleted resource. |
+| `EVIDENCE-RESOURCE` | Missing, escaping, oversized, non-regular, symlinked, multiply linked, changed, or deleted resource. |
 | `EVIDENCE-DIGEST` | Exact resource bytes do not match `bookie.sha256`. |
 | `EVIDENCE-SUPPORT` | Missing or path-replaced supported concept. |
 
@@ -158,6 +158,8 @@ Profile versions use `MAJOR.MINOR` and are exact schema identifiers.
 - Changed meaning, new required fields, enum removals, or incompatible placement require a breaking major version.
 - A breaking major upgrade requires an explicit migration command and backwards-compatibility fixtures; opening a vault never migrates it implicitly.
 - Merged Activity and Evidence are never rewritten merely to change `bookie.profile`. A target major profile must explicitly declare which historical schemas it accepts for legacy immutable records. Those records retain their original profile and exact bytes and validate against that historical schema; new corrections use the target profile. If the target cannot recognize every retained immutable profile, migration must refuse.
+
+The unversioned common/type schema files are frozen as the profile 1.0 set. Before another profile generation is accepted, an ADR-backed migration increment must retain a version-addressed copy, preserve the existing 1.0 schema URIs, and define runtime selection by each record's declared profile; a future profile cannot overwrite the only historical copy.
 
 A migration must:
 

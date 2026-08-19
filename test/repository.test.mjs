@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, extname, join, normalize, resolve } from "node:path";
 import test from "node:test";
@@ -6,6 +7,7 @@ import test from "node:test";
 const root = resolve(import.meta.dirname, "..");
 
 const requiredFiles = [
+  ".gitattributes",
   "AGENTS.md",
   "README.md",
   "CONTRIBUTING.md",
@@ -72,6 +74,22 @@ test("repository contains the agent handoff contract", () => {
     [],
     `Missing required files:\n${missing.join("\n")}`,
   );
+});
+
+test("exact-byte CRLF fixtures are protected from text normalization", () => {
+  for (const path of [
+    "fixtures/policy/1.0/resources/crlf.txt",
+    "packages/core/test/fixtures/lossless-crlf.md",
+  ]) {
+    const checked = spawnSync(
+      "git",
+      ["check-attr", "text", "diff", "--", path],
+      { cwd: root, encoding: "utf8" },
+    );
+    assert.equal(checked.status, 0, checked.stderr);
+    assert.match(checked.stdout, /text: unset/u);
+    assert.match(checked.stdout, /diff: unset/u);
+  }
 });
 
 test("local Markdown links resolve", () => {
@@ -286,6 +304,17 @@ test("toolchain, workspaces, and lockfile versions stay aligned", () => {
       manifest.version,
       `${manifest.name} lockfile entry drifted`,
     );
+    if (workspacePath === "packages/core") {
+      assert.equal(manifest.engines?.node, rootPackage.engines.node);
+      assert.equal(
+        lockfile.packages[workspacePath]?.engines?.node,
+        rootPackage.engines.node,
+      );
+      assert.deepEqual(
+        lockfile.packages[workspacePath]?.dependencies,
+        manifest.dependencies,
+      );
+    }
   }
   assert.equal(
     new Set(names).size,

@@ -1,7 +1,10 @@
+import { setImmediate as yieldToEventLoop } from "node:timers/promises";
+
+import { throwIfAborted } from "./vault-cancellation.js";
 import { createDiagnostic, DiagnosticCollector } from "./vault-diagnostics.js";
 import type {
   BookieCandidate,
-  BookieData,
+  BookiePolicySource,
   BookieRecord,
   Manifest,
   Relation,
@@ -13,6 +16,7 @@ const inverseKinds = new Map<string, string>([
   ["blocks", "blocked_by"],
   ["blocked_by", "blocks"],
 ]);
+const YIELD_EVERY_OPERATIONS = 1_024;
 
 function relationInverse(kind: string, sourceType: string): string | undefined {
   const direct = inverseKinds.get(kind);
@@ -26,8 +30,14 @@ function relationInverse(kind: string, sourceType: string): string | undefined {
   return undefined;
 }
 
-function asRelations(bookie: BookieData): readonly Relation[] {
+function asRelations(bookie: {
+  readonly relations?: readonly Relation[];
+}): readonly Relation[] {
   return bookie.relations ?? [];
+}
+
+function relationKey(kind: string, target: string): string {
+  return `${kind}\0${target}`;
 }
 
 export function validateCandidateIdentity(
@@ -59,14 +69,60 @@ export function validateCandidateIdentity(
   }
 }
 
-export function validateCurrentTree(
+export async function validateCurrentTree(
   records: readonly BookieRecord[],
   collector: DiagnosticCollector,
-): void {
+  signal?: AbortSignal,
+  sources: readonly BookiePolicySource[] = records,
+): Promise<void> {
   const byPath = new Map(records.map((record) => [record.path, record]));
+  const validPaths = new Set(byPath.keys());
+  const relationsByPath = new Map<string, readonly Relation[]>();
+  const edgeIndex = new Map<
+    string,
+    ReadonlyMap<string, { count: number; readonly first: Relation }>
+  >();
   const incomingDecisionReplacements = new Map<string, number>();
+  let operations = 0;
 
-  for (const source of records) {
+  const checkpoint = async (): Promise<void> => {
+    throwIfAborted(signal);
+    operations += 1;
+    if (operations % YIELD_EVERY_OPERATIONS === 0) {
+      await yieldToEventLoop();
+      throwIfAborted(signal);
+    }
+  };
+
+  for (const record of records) {
+    await checkpoint();
+    const relations = asRelations(record.bookie);
+    relationsByPath.set(record.path, relations);
+    const byEdge = new Map<
+      string,
+      { count: number; readonly first: Relation }
+    >();
+    for (const relation of relations) {
+      await checkpoint();
+      const key = relationKey(relation.kind, relation.target);
+      const matching = byEdge.get(key);
+      if (matching === undefined)
+        byEdge.set(key, { count: 1, first: relation });
+      else matching.count += 1;
+    }
+    edgeIndex.set(record.path, byEdge);
+  }
+
+  const matchingEdges = (
+    path: string,
+    kind: string,
+    target: string,
+  ): { readonly count: number; readonly first?: Relation } =>
+    edgeIndex.get(path)?.get(relationKey(kind, target)) ?? { count: 0 };
+
+  for (const source of sources) {
+    await checkpoint();
+    const sourceRelations = asRelations(source.bookie);
     const projectPath = source.bookie.project;
     if (projectPath !== undefined) {
       const project = byPath.get(projectPath);
@@ -76,21 +132,31 @@ export function validateCurrentTree(
     }
 
     const seen = new Set<string>();
-    for (const relation of asRelations(source.bookie)) {
-      const logicalKey = `${relation.kind}\0${relation.target}`;
+    let correctionEdges = 0;
+    for (const relation of sourceRelations) {
+      await checkpoint();
+      const logicalKey = relationKey(relation.kind, relation.target);
       if (seen.has(logicalKey)) {
         collector.add(createDiagnostic("RELATION-TARGET", source.displayFile));
       }
       seen.add(logicalKey);
+      if (relation.kind === "supersedes") correctionEdges += 1;
 
       const target = byPath.get(relation.target);
+      if (target === undefined) {
+        collector.add(createDiagnostic("RELATION-TARGET", source.displayFile));
+        if (source.type === "Decision" && relation.kind === "supersedes") {
+          collector.add(
+            createDiagnostic("DECISION-SUPERSESSION", source.displayFile),
+          );
+        }
+        continue;
+      }
       if (
-        target === undefined ||
-        (relation.target_uid !== undefined &&
-          relation.target_uid !== target.bookie.uid)
+        relation.target_uid !== undefined &&
+        relation.target_uid !== target.bookie.uid
       ) {
         collector.add(createDiagnostic("RELATION-TARGET", source.displayFile));
-        continue;
       }
 
       if (relation.kind === "supersedes" || relation.kind === "superseded_by") {
@@ -110,14 +176,12 @@ export function validateCurrentTree(
 
       const inverse = relationInverse(relation.kind, source.type);
       if (inverse !== undefined) {
-        const matches = asRelations(target.bookie).filter(
-          (candidate) =>
-            candidate.kind === inverse &&
-            candidate.target === source.path &&
-            (candidate.target_uid === undefined ||
-              candidate.target_uid === source.bookie.uid),
-        );
-        if (matches.length !== 1) {
+        const matches = matchingEdges(target.path, inverse, source.path);
+        const cachedUidValid =
+          matches.first?.target_uid === undefined ||
+          (source.bookie.uid !== undefined &&
+            matches.first.target_uid === source.bookie.uid);
+        if (matches.count !== 1 || !cachedUidValid) {
           collector.add(
             createDiagnostic("RELATION-INVERSE", source.displayFile),
           );
@@ -129,19 +193,20 @@ export function validateCurrentTree(
           target.path,
           (incomingDecisionReplacements.get(target.path) ?? 0) + 1,
         );
-        const reciprocal = asRelations(target.bookie).filter(
-          (candidate) =>
-            candidate.kind === "superseded_by" &&
-            candidate.target === source.path,
+        const reciprocal = matchingEdges(
+          target.path,
+          "superseded_by",
+          source.path,
         );
         if (
+          !validPaths.has(source.path) ||
           source.status !== "stable" ||
           source.bookie.state !== "accepted" ||
           target.type !== "Decision" ||
           target.bookie.project !== source.bookie.project ||
           target.status !== "deprecated" ||
           target.bookie.state !== "superseded" ||
-          reciprocal.length !== 1
+          reciprocal.count !== 1
         ) {
           collector.add(
             createDiagnostic("DECISION-SUPERSESSION", source.displayFile),
@@ -152,27 +217,26 @@ export function validateCurrentTree(
 
     if (
       (source.type === "Activity" || source.type === "Evidence") &&
-      asRelations(source.bookie).filter(
-        (relation) => relation.kind === "supersedes",
-      ).length > 1
+      correctionEdges > 1
     ) {
       collector.add(createDiagnostic("RELATION-TARGET", source.displayFile));
     }
 
-    if (source.type === "Decision" && source.bookie.state === "superseded") {
-      const links = asRelations(source.bookie).filter(
-        (relation) => relation.kind === "superseded_by",
-      );
+    const predecessorLinks = sourceRelations.filter(
+      (relation) => relation.kind === "superseded_by",
+    );
+    if (
+      source.type === "Decision" &&
+      (source.bookie.state === "superseded" || predecessorLinks.length > 0)
+    ) {
+      const links = predecessorLinks;
       const replacement = byPath.get(links[0]?.target ?? "");
       const replacementEdges =
         replacement === undefined
-          ? []
-          : asRelations(replacement.bookie).filter(
-              (relation) =>
-                relation.kind === "supersedes" &&
-                relation.target === source.path,
-            );
+          ? { count: 0 }
+          : matchingEdges(replacement.path, "supersedes", source.path);
       if (
+        !validPaths.has(source.path) ||
         source.status !== "deprecated" ||
         links.length !== 1 ||
         replacement === undefined ||
@@ -180,7 +244,7 @@ export function validateCurrentTree(
         replacement.bookie.project !== source.bookie.project ||
         replacement.status !== "stable" ||
         replacement.bookie.state !== "accepted" ||
-        replacementEdges.length !== 1
+        replacementEdges.count !== 1
       ) {
         collector.add(
           createDiagnostic("DECISION-SUPERSESSION", source.displayFile),
@@ -190,6 +254,7 @@ export function validateCurrentTree(
 
     if (source.type === "Evidence") {
       for (const support of source.bookie.supports ?? []) {
+        await checkpoint();
         if (!byPath.has(support)) {
           collector.add(
             createDiagnostic("EVIDENCE-SUPPORT", source.displayFile),
@@ -200,6 +265,7 @@ export function validateCurrentTree(
   }
 
   for (const [path, count] of incomingDecisionReplacements) {
+    await checkpoint();
     if (count > 1) {
       collector.add(
         createDiagnostic(
@@ -215,7 +281,7 @@ export function validateCurrentTree(
       .filter((record) => record.type === "Decision")
       .map((record) => [
         record.path,
-        asRelations(record.bookie)
+        (relationsByPath.get(record.path) ?? [])
           .filter((relation) => relation.kind === "supersedes")
           .map((relation) => relation.target),
       ]),
@@ -223,6 +289,7 @@ export function validateCurrentTree(
   const colors = new Map<string, 1 | 2>();
   const cyclicPaths = new Set<string>();
   for (const start of decisionEdges.keys()) {
+    await checkpoint();
     if (colors.has(start)) continue;
     const stack: Array<{
       readonly path: string;
@@ -232,6 +299,7 @@ export function validateCurrentTree(
     colors.set(start, 1);
 
     while (stack.length > 0) {
+      await checkpoint();
       const current = stack.at(-1);
       if (current === undefined) break;
       if (current.index >= current.targets.length) {

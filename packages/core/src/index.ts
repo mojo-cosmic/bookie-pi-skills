@@ -29,6 +29,9 @@ export type {
   LoadConceptOptions,
   LoadConceptResult,
   LoadedConcept,
+  ReadonlyYamlMapping,
+  ReadonlyYamlScalar,
+  ReadonlyYamlValue,
   SourcePosition,
   SourceRange,
 } from "./concept-loader.js";

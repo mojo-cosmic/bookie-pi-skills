@@ -62,6 +62,24 @@ export interface BookieRecord {
   readonly bookie: BookieData;
 }
 
+export interface BookiePolicySource {
+  readonly path: string;
+  readonly displayFile: string;
+  readonly type: string;
+  readonly status?: string;
+  readonly frontmatter: Readonly<Record<string, unknown>>;
+  readonly bookie: {
+    readonly profile?: string;
+    readonly uid?: string;
+    readonly project?: string;
+    readonly state?: string;
+    readonly sensitivity?: string;
+    readonly relations?: readonly Relation[];
+    readonly supports?: readonly string[];
+    readonly sha256?: string;
+  };
+}
+
 export interface SchemaError {
   readonly instancePath: string;
   readonly keyword: string;

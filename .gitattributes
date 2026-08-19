@@ -1,0 +1,3 @@
+# These fixtures deliberately preserve CRLF bytes and are byte-tested.
+fixtures/policy/1.0/resources/crlf.txt -text -diff
+packages/core/test/fixtures/lossless-crlf.md -text -diff

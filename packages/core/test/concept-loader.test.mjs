@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -201,7 +203,7 @@ test("frontmatter envelope requires exact opening and closing lines", () => {
 
 test("malformed YAML returns stable sanitized diagnostics with source ranges", () => {
   const malformed = wrapped(
-    "title: Δ\nsecret: TOP-SECRET-LEAK-MARKER\nbroken: [1,",
+    "title: Δ\nsecret: redacted-test-placeholder\nbroken: [1,",
   );
   const result = loadConcept(malformed, { file: "malformed.md" });
   const diagnostic = assertFailure(result, "YAML-SYNTAX", "malformed.md");
@@ -210,7 +212,7 @@ test("malformed YAML returns stable sanitized diagnostics with source ranges", (
   assert.ok(diagnostic.range.start.line >= 2);
   assert.ok(diagnostic.range.start.column >= 1);
   assert.equal(
-    JSON.stringify(result.diagnostics).includes("TOP-SECRET-LEAK-MARKER"),
+    JSON.stringify(result.diagnostics).includes("redacted-test-placeholder"),
     false,
   );
 
@@ -276,6 +278,7 @@ test("unsupported YAML versions, tags, aliases, unsafe integers, and depth fail 
     ["unsafe: 9007199254740992", undefined],
     ["unsafe: 9007199254740993.0", undefined],
     ["unsafe: 9007199254740993e0", undefined],
+    ["unsafe: 9007199254740990.9", undefined],
     ["not_finite: .inf", undefined],
     ["not_a_number: .nan", undefined],
     ["a:\n  b:\n    c:\n      d: value", 3],
@@ -312,6 +315,80 @@ test("near-limit hostile nesting fails closed within the accepted parser budget"
   assert.ok(elapsed < 5_000, `hostile parse took ${elapsed.toFixed(0)} ms`);
 });
 
+test("loader ownership is nominal in TypeScript", () => {
+  const directory = mkdtempSync(join(tmpdir(), "bookie-loader-types-"));
+  try {
+    const declarationRoot = resolve(fixtures, "../../dist/index.js");
+    const relativeModule = relative(directory, declarationRoot)
+      .split("\\")
+      .join("/")
+      .replace(/^(?!\.)/u, "./");
+    const importLine = `import { serializeConcept, type LoadedConcept, type ReadonlyYamlValue } from ${JSON.stringify(relativeModule)};\n`;
+    writeFileSync(
+      join(directory, "valid.ts"),
+      `${importLine}declare const concept: LoadedConcept;\nserializeConcept(concept);\n`,
+    );
+    writeFileSync(
+      join(directory, "ownership.ts"),
+      `${importLine}declare const concept: LoadedConcept;\nserializeConcept({ ...concept });\n`,
+    );
+    writeFileSync(
+      join(directory, "mutation.ts"),
+      `${importLine}declare const sequence: Extract<ReadonlyYamlValue, readonly ReadonlyYamlValue[]>;\nsequence[0] = null;\n`,
+    );
+    const compilerOptions = {
+      module: "NodeNext",
+      moduleResolution: "NodeNext",
+      noEmit: true,
+      strict: true,
+      target: "ES2023",
+    };
+    for (const name of ["valid", "ownership", "mutation"]) {
+      writeFileSync(
+        join(directory, `tsconfig-${name}.json`),
+        JSON.stringify({ compilerOptions, files: [`${name}.ts`] }),
+      );
+    }
+    const compiler = resolve(fixtures, "../../../../node_modules/.bin/tsc");
+    const valid = spawnSync(
+      compiler,
+      ["-p", join(directory, "tsconfig-valid.json"), "--pretty", "false"],
+      { encoding: "utf8" },
+    );
+    assert.equal(valid.status, 0, valid.stdout || valid.stderr);
+    const forged = spawnSync(
+      compiler,
+      ["-p", join(directory, "tsconfig-ownership.json"), "--pretty", "false"],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(
+      forged.status,
+      0,
+      "spread concept unexpectedly type-checked",
+    );
+    assert.match(
+      `${forged.stdout}${forged.stderr}`,
+      /LoadedConceptOwnership|loadedConceptOwnership|private/u,
+    );
+    const mutation = spawnSync(
+      compiler,
+      ["-p", join(directory, "tsconfig-mutation.json"), "--pretty", "false"],
+      { encoding: "utf8" },
+    );
+    assert.notEqual(
+      mutation.status,
+      0,
+      "nested frontmatter mutation unexpectedly type-checked",
+    );
+    assert.match(
+      `${mutation.stdout}${mutation.stderr}`,
+      /TS2542|only permits reading|readonly/u,
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("public declarations do not expose parser-specific AST types", () => {
   const declarations = ["index.d.ts", "concept-loader.d.ts"].map((name) =>
     readFileSync(join(dirname(fixtures), "..", "dist", name), "utf8"),
@@ -320,4 +397,10 @@ test("public declarations do not expose parser-specific AST types", () => {
     assert.doesNotMatch(declaration, /from ["']yaml["']|yaml\//i);
     assert.doesNotMatch(declaration, /Document|ParsedNode|SourceToken/);
   }
+  assert.match(declarations[1], /private readonly loadedConceptOwnership/u);
+  assert.match(declarations[1], /ReadonlyYamlValue/u);
+  assert.doesNotMatch(
+    declarations[1],
+    /frontmatter: Readonly<Record<string, unknown>>/u,
+  );
 });
