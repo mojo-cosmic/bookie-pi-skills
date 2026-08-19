@@ -43,7 +43,7 @@ TypeScript 7 and Node 26 types are intentionally not selected: they are not comp
 Repository tests verify:
 
 - `.nvmrc`, root engine, and package engine alignment;
-- `@bookie/core` runs its build during `npm pack`, and a clean relocated tarball contains code, declarations, canonical schema assets, and an offline-installable runtime dependency set;
+- `@bookie/core` runs its build during `npm pack`, and a clean relocated tarball contains code, declarations, canonical schema assets, and a complete declared runtime dependency set;
 - pinned npm package-manager syntax;
 - workspace name/version/private-state alignment with the lockfile;
 - OKF and example profile version consistency;

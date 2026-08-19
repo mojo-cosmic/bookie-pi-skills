@@ -927,7 +927,7 @@ test("a clean relocated package carries canonical schemas and supported runtime 
     "npm",
     [
       "install",
-      "--offline",
+      "--prefer-offline",
       "--ignore-scripts",
       "--no-audit",
       "--no-fund",
